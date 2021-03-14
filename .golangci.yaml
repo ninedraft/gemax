@@ -1,0 +1,199 @@
+run:
+  # concurrency: 2 # available CPU number
+  timeout: 5m # timeout for analysis
+  issues-exit-code: 1 # exit code when issue was found
+  build-tags: [] # list of build tags
+  tests: true # include tests
+  skip-dirs: [] # dirs to skip
+  skip-dirs-use-default: true # skip vendor, third_party, test_data
+  modules-download-mode: readonly # readonly|release|vendor
+
+output:
+  format: colored-line-number # colored-line-number|line-number|json|tab
+  print-issued-lines: true # print lines of code with issue
+  print-linter-name: true # print linter name in the end of issue text
+
+issues:
+  exclude: [] # list of regexps of issue texts to exclude
+  exclude-rules: [] # path, linter, text and source exclude rules
+  exclude-use-default: false # use default exclude patterns
+  max-issues-per-linter: 0 # maximum issues count per one linter
+  max-same-issues: 0 # maximum issues count with same text
+  new: false # show only new issues
+  new-from-rev: "" # show only new issues created after git revision
+  new-from-patch: "" # show only new issues created in git patch
+
+linters:
+  disable-all: false
+  fast: false
+  presets: []
+  enable:
+    - bodyclose # Checks whether HTTP response body is closed successfully [fast: true, auto-fix: false]
+    - deadcode # Finds unused code [fast: true, auto-fix: false]
+    - depguard # Go linter that checks if package imports are in a list of acceptable packages [fast: true, auto-fix: false]
+    - dogsled # Checks assignments with too many blank identifiers (e.g. x, _, _, _, := f()) [fast: true, auto-fix: false]
+    - errcheck # Errcheck is a program for checking for unchecked errors in go programs. These unchecked errors can be critical bugs in some cases [fast: true, auto-fix: false]
+    - funlen # Tool for detection of long functions [fast: true, auto-fix: false]
+    - ineffassign # Detects when assignments to existing variables are not used [fast: true, auto-fix: false]
+    - gocognit # Computes and checks the cognitive complexity of functions [fast: true, auto-fix: false]
+    - goconst # Finds repeated strings that could be replaced by a constant [fast: true, auto-fix: false]
+    - gocritic # The most opinionated Go source code linter [fast: true, auto-fix: false]
+    - gocyclo # Computes and checks the cyclomatic complexity of functions [fast: true, auto-fix: false]
+    - godox # Tool for detection of FIXME, TODO and other comment keywords [fast: true, auto-fix: false]
+    - gofmt # Gofmt checks whether code was gofmt-ed. By default this tool runs with -s option to check for code simplification [fast: true, auto-fix: true]
+    - goimports # Goimports does everything that gofmt does. Additionally it checks unused imports [fast: true, auto-fix: true]
+    - golint # Golint differs from gofmt. Gofmt reformats Go source code, whereas golint prints out style mistakes [fast: true, auto-fix: false]
+    - gosimple # Linter for Go source code that specializes in simplifying a code [fast: true, auto-fix: false]
+    - gosec # Inspects source code for security problems [fast: true, auto-fix: false]
+    - govet # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string [fast: true, auto-fix: false]
+    - interfacer # Linter that suggests narrower interface types [fast: true, auto-fix: false]
+    - lll # Reports long lines [fast: true, auto-fix: false]
+    - maligned # Tool to detect Go structs that would take less memory if their fields were sorted [fast: true, auto-fix: false]
+    - misspell # Finds commonly misspelled English words in comments [fast: true, auto-fix: true]
+    - nakedret # Finds naked returns in functions greater than a specified function length [fast: true, auto-fix: false]
+    - prealloc # Finds slice declarations that could potentially be preallocated [fast: true, auto-fix: false]
+    - staticcheck # Staticcheck is a go vet on steroids, applying a ton of static analysis checks [fast: true, auto-fix: false]
+    - structcheck # Finds unused struct fields [fast: true, auto-fix: false]
+    - scopelint # Scopelint checks for unpinned variables in go programs [fast: true, auto-fix: false]
+    - stylecheck # Stylecheck is a replacement for golint [fast: true, auto-fix: false]
+    - typecheck # Like the front-end of a Go compiler, parses and type-checks Go code [fast: true, auto-fix: false]
+    - unconvert # Remove unnecessary type conversions [fast: true, auto-fix: false]
+    - unused # Checks Go code for unused constants, variables, functions and types [fast: false, auto-fix: false]
+    - unparam # Reports unused function parameters [fast: true, auto-fix: false]
+    - varcheck # Finds unused global variables and constants [fast: true, auto-fix: false]
+    - whitespace # Tool for detection of leading and trailing whitespace [fast: true, auto-fix: true]
+  disable:
+    - dupl # Tool for code clone detection [fast: true, auto-fix: false]
+    - gochecknoglobals # Checks that no globals are present in Go code [fast: true, auto-fix: false]
+    - gochecknoinits # Checks that no init functions are present in Go code [fast: true, auto-fix: false]
+    - gomnd # An analyzer to detect magic numbers. [fast: true, auto-fix: false]
+    - wsl # Whitespace Linter - Forces you to use empty lines! [fast: true, auto-fix: false]
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true # checking of errors in type assetions
+    check-blank: false # errors assignment to blank identifier
+
+  depguard:
+    list-type: blacklist
+    include-go-root: true
+    packages:
+      # - net/context
+    packages-with-error-messages:
+      # - context: "context instead"
+
+  dogsled:
+    max-blank-identifiers: 2
+
+  dupl:
+    threshold: 100 # tokens count to trigger issue
+
+  funlen:
+    lines: 200
+    statements: 50
+
+  gocognit:
+    min-complexity: 20 # minimal code complexity to report
+
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    enabled-checks: []
+    disabled-checks: []
+    settings: {}
+
+  gocyclo:
+    min-complexity: 10 # minimal code complexity to report
+
+  godox:
+    keywords:
+      - TODO
+      - FIXME
+
+  gofmt:
+    simplify: true
+
+  goimports:
+    local-prefixes: vwgroup.dev/slm
+
+  golint:
+    min-confidency: 0
+
+  gomnd:
+    settings:
+      mnd:
+        checks: argument,case,condition,operation,return,assign
+
+  govet:
+    check-shadowing: true
+    settings: {} # settings per analyzer
+    enable-all: false
+    enable:
+      - assign # check for useless assignments
+      - atomic # check for common mistakes using the sync/atomic package
+      - bools # check for common mistakes involving boolean operators
+      - buildtag # check that +build tags are well-formed and correctly located
+      - composites # check for unkeyed composite literals
+      - copylocks # check for locks erroneously passed by value
+      - errorsas # report passing non-pointer or non-error values to errors.As
+      - loopclosure # check references to loop variables from within nested functions
+      - lostcancel # check cancel func returned by context.WithCancel is called
+      - nilfunc # check for useless comparisons between functions and nil
+      - printf # check consistency of Printf format strings and arguments
+      - shift # check for shifts that equal or exceed the width of the integer
+      - stdmethods # check signature of methods of well-known interfaces
+      - structtag # check that struct field tags conform to reflect.StructTag.Get
+      - tests # check for common mistaken usages of tests and examples
+      - unmarshal # report passing non-pointer or non-interface values to unmarshal
+      - unreachable # check for unreachable code
+      - unsafeptr # check for invalid conversions of uintptr to unsafe.Pointer
+      - unusedresult # check for unused results of calls to some functions
+    disable-all: false
+    disable:
+      - asmdecl # report mismatches between assembly files and Go declarations
+      - cgocall # detect some violations of the cgo pointer passing rules
+      - httpresponse # check for mistakes using HTTP responses
+
+  lll:
+    line-height: 120
+    tab-width: 4
+
+  maligned:
+    suggest-new: true
+
+  misspell:
+    locale: US
+    ignore-words: []
+
+  prealloc:
+    simple: true # loops that have no returns/breaks/continues/gotos
+    range-loops: true # preallocation suggestions on range loops
+    for-loops: true # preallocation suggestions on for loops
+
+  nakedret:
+    max-func-lines: 10
+
+  unused:
+    check-exported: false
+
+  unparam:
+    check-exported: false
+
+  whitespace:
+    multi-if: true
+    multi-func: true
+
+  wsl:
+    strict-append: true
+    allow-assign-and-call: true
+    allow-multiline-assign: true
+    allow-trailing-comment: false
+    force-case-trailing-whitespace: 0
