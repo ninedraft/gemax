@@ -28,12 +28,11 @@ func (rw *responseWriter) WriteStatus(code status.Code, meta string) {
 	}
 	_, _ = fmt.Fprintf(rw.dst, "%d %s\r\n", code, meta)
 	rw.status = code
+	rw.statusWritten = true
 }
 
 func (rw *responseWriter) Write(data []byte) (int, error) {
-	if !rw.statusWritten {
-		rw.WriteStatus(status.Success, MIMEGemtext)
-	}
+	rw.WriteStatus(status.Success, MIMEGemtext)
 	return rw.dst.Write(data)
 }
 
