@@ -17,12 +17,20 @@ type Server struct {
 	Handler     Handler
 	ConnContext func(ctx context.Context, conn net.Conn) context.Context
 
-	mu    sync.RWMutex
-	conns map[net.Conn]struct{}
+	mu        sync.RWMutex
+	conns     map[*connTrack]struct{}
+	listeners map[net.Listener]struct{}
 }
 
 // Serve starts server on provided listener. Provided context will be passed to handlers.
 func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
+	if server.conns == nil {
+		server.conns = map[*connTrack]struct{}{}
+	}
+	if server.listeners == nil {
+		server.listeners = map[net.Listener]struct{}{}
+	}
+	server.addListener(listener)
 	var wg = &sync.WaitGroup{}
 	defer wg.Wait()
 	for {
@@ -31,10 +39,10 @@ func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 			return fmt.Errorf("gemini server: %w", errAccept)
 		}
 		wg.Add(1)
-		server.addConn(conn)
+		var track = server.addConn(conn)
 		go func() {
 			defer wg.Done()
-			defer server.removeConn(conn)
+			defer server.removeTrack(track)
 			server.handle(ctx, conn)
 		}()
 	}
@@ -49,7 +57,10 @@ func (server *Server) closeAll() {
 	server.mu.RLock()
 	defer server.mu.RUnlock()
 	for conn := range server.conns {
-		_ = conn.Close()
+		_ = conn.c.Close()
+	}
+	for listener := range server.listeners {
+		_ = listener.Close()
 	}
 }
 
@@ -62,7 +73,6 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 	if deadlineOK {
 		_ = conn.SetDeadline(deadline)
 	}
-
 	var rw = &responseWriter{dst: conn}
 	var req, errParseReq = ParseIncomingRequest(conn, conn.RemoteAddr().String())
 	if errParseReq != nil {
@@ -76,14 +86,26 @@ func ignoreErr(fn func() error) {
 	_ = fn()
 }
 
-func (server *Server) addConn(conn net.Conn) {
+func (server *Server) addConn(conn net.Conn) *connTrack {
 	server.mu.Lock()
 	defer server.mu.Unlock()
-	server.conns[conn] = struct{}{}
+	var track = &connTrack{c: conn}
+	server.conns[track] = struct{}{}
+	return track
 }
 
-func (server *Server) removeConn(conn net.Conn) {
+func (server *Server) addListener(listener net.Listener) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
-	delete(server.conns, conn)
+	server.listeners[listener] = struct{}{}
+}
+
+func (server *Server) removeTrack(track *connTrack) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	delete(server.conns, track)
+}
+
+type connTrack struct {
+	c net.Conn
 }
