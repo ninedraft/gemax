@@ -1,5 +1,7 @@
 package status
 
+import "strconv"
+
 // Code is a gemini protocol status code.
 // Reference document: gemini://gemini.circumlunar.space/docs/specification.gmi
 type Code int
@@ -7,6 +9,11 @@ type Code int
 // Int retursn an integer code representation.
 func (code Code) Int() int {
 	return int(code)
+}
+
+// Text returns a code text representation in "iteger_code text_description" format.
+func Text(code Code) string {
+	return strconv.Itoa(code.Int()) + " " + code.String()
 }
 
 // Comments copy-pasted from official gemini specification.
