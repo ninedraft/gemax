@@ -16,6 +16,7 @@ type Handler func(ctx context.Context, rw ResponseWriter, req IncomingRequest)
 type Server struct {
 	Handler     Handler
 	ConnContext func(ctx context.Context, conn net.Conn) context.Context
+	Logf        func(format string, args ...interface{})
 
 	mu        sync.RWMutex
 	conns     map[*connTrack]struct{}
@@ -76,6 +77,7 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 	var rw = newResponseWriter(conn)
 	var req, errParseReq = ParseIncomingRequest(conn, conn.RemoteAddr().String())
 	if errParseReq != nil {
+		server.logf("WARN: bad request: remote_ip=%s", conn.RemoteAddr())
 		rw.WriteStatus(status.PermanentFailure, "bad request")
 		return
 	}
@@ -113,4 +115,10 @@ func (server *Server) removeTrack(track *connTrack) {
 
 type connTrack struct {
 	c net.Conn
+}
+
+func (server *Server) logf(format string, args ...interface{}) {
+	if server.Logf != nil {
+		server.Logf(format, args...)
+	}
 }
