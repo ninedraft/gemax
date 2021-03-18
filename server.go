@@ -32,17 +32,13 @@ func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 		server.listeners = map[net.Listener]struct{}{}
 	}
 	server.addListener(listener)
-	var wg = &sync.WaitGroup{}
-	defer wg.Wait()
 	for {
 		var conn, errAccept = listener.Accept()
 		if errAccept != nil {
 			return fmt.Errorf("gemini server: %w", errAccept)
 		}
-		wg.Add(1)
 		var track = server.addConn(conn)
 		go func() {
-			defer wg.Done()
 			defer server.removeTrack(track)
 			server.handle(ctx, conn)
 		}()
