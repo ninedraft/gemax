@@ -27,12 +27,13 @@ type responseWriter struct {
 
 func newResponseWriter(wr io.WriteCloser) *responseWriter {
 	return &responseWriter{
-		dst: newBufferedWriter(wr),
+		dst:      newBufferedWriter(wr),
+		isClosed: false,
 	}
 }
 
 func (rw *responseWriter) WriteStatus(code status.Code, meta string) {
-	if rw.statusWritten {
+	if rw.statusWritten || rw.isClosed {
 		return
 	}
 	if code == status.Success && meta == "" {
@@ -44,11 +45,17 @@ func (rw *responseWriter) WriteStatus(code status.Code, meta string) {
 }
 
 func (rw *responseWriter) Write(data []byte) (int, error) {
+	if rw.isClosed {
+		return 0, io.ErrNoProgress
+	}
 	rw.WriteStatus(status.Success, MIMEGemtext)
 	return rw.dst.Write(data)
 }
 
 func (rw *responseWriter) WriteString(s string) (int, error) {
+	if rw.isClosed {
+		return 0, io.ErrNoProgress
+	}
 	rw.WriteStatus(status.Success, MIMEGemtext)
 	return rw.dst.WriteString(s)
 }
