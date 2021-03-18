@@ -4,25 +4,23 @@ import (
 	"context"
 	"crypto/tls"
 	"embed"
-	"fmt"
 	"log"
-	"time"
 
 	gemax "github.com/ninedraft/gemax"
 )
 
-//go:embed index.gmi
-var helloPage []byte
-
 func main() {
+	var blog = &gemax.FileSystem{
+		Prefix: "/blog",
+		FS:     blogDir,
+		Logf:   log.Printf,
+	}
+
 	var addr = "localhost:1986"
 	var ctx = context.Background()
 	var server = &gemax.Server{
-		Handler: func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
-			log.Println("incoming request", req.URL())
-			rw.Write(helloPage)
-			fmt.Fprintf(rw, "\n%s\n", time.Now().Format(time.RubyDate))
-		},
+		Handler: blog.Serve,
+		Logf:    log.Printf,
 	}
 
 	var listener, errListener = tls.Listen("tcp", addr, &tls.Config{
@@ -58,3 +56,6 @@ func loadCert() tls.Certificate {
 	}
 	return c
 }
+
+//go:embed blog/*
+var blogDir embed.FS
