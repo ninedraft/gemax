@@ -73,12 +73,17 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 	if deadlineOK {
 		_ = conn.SetDeadline(deadline)
 	}
-	var rw = &responseWriter{dst: conn}
+	var rw = newResponseWriter(conn)
 	var req, errParseReq = ParseIncomingRequest(conn, conn.RemoteAddr().String())
 	if errParseReq != nil {
 		rw.WriteStatus(status.PermanentFailure, "bad request")
 		return
 	}
+	defer func() {
+		if !rw.isClosed {
+			_ = rw.Close()
+		}
+	}()
 	server.Handler(ctx, rw, req)
 }
 
