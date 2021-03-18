@@ -74,7 +74,8 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 	var req, errParseReq = ParseIncomingRequest(conn, conn.RemoteAddr().String())
 	if errParseReq != nil {
 		server.logf("WARN: bad request: remote_ip=%s", conn.RemoteAddr())
-		rw.WriteStatus(status.PermanentFailure, "bad request")
+		const code = status.BadRequest
+		rw.WriteStatus(code, status.Text(code))
 		return
 	}
 	defer func() {
