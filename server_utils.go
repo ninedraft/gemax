@@ -1,6 +1,7 @@
 package gemax
 
 import (
+	"context"
 	"io"
 	urlpkg "net/url"
 	"path"
@@ -52,6 +53,14 @@ func Redirect(rw ResponseWriter, req IncomingRequest, target string, code status
 // NotFound serves a not found error.
 func NotFound(rw ResponseWriter, req IncomingRequest) {
 	rw.WriteStatus(status.NotFound, req.URL().String()+" is not found\r\n")
+}
+
+// ServeContent creates a handler, which serves provided bytes as static page.
+func ServeContent(contentType string, content []byte) Handler {
+	return func(_ context.Context, rw ResponseWriter, _ IncomingRequest) {
+		rw.WriteStatus(status.Success, contentType)
+		_, _ = rw.Write(content)
+	}
 }
 
 // Query returns request query string.
