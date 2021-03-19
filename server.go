@@ -71,6 +71,11 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 		_ = conn.SetDeadline(deadline)
 	}
 	var rw = newResponseWriter(conn)
+	defer func() {
+		if !rw.isClosed {
+			_ = rw.Close()
+		}
+	}()
 	var req, errParseReq = ParseIncomingRequest(conn, conn.RemoteAddr().String())
 	if errParseReq != nil {
 		server.logf("WARN: bad request: remote_ip=%s", conn.RemoteAddr())
@@ -78,11 +83,6 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 		rw.WriteStatus(code, status.Text(code))
 		return
 	}
-	defer func() {
-		if !rw.isClosed {
-			_ = rw.Close()
-		}
-	}()
 	server.Handler(ctx, rw, req)
 }
 
