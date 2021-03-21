@@ -2,6 +2,7 @@ package gemax_test
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -15,8 +16,16 @@ import (
 )
 
 func TestServerSuccess(test *testing.T) {
-	var listener = setupEchoServer(test)
+	var listener, server = setupEchoServer(test)
 	defer func() { _ = listener.Close() }()
+	var ctx, cancel = context.WithCancel(context.Background())
+	test.Cleanup(cancel)
+	runTask(test, func() {
+		var err = server.Serve(ctx, listener)
+		if err != nil {
+			test.Logf("test server: Serve: %v", err)
+		}
+	})
 
 	var resp = listener.next(test.Name(), strings.NewReader("gemini://example.com/path"))
 
@@ -24,14 +33,70 @@ func TestServerSuccess(test *testing.T) {
 }
 
 func TestServerBadRequest(test *testing.T) {
-	var listener = setupEchoServer(test)
+	var listener, server = setupEchoServer(test)
 	defer func() { _ = listener.Close() }()
+	var ctx, cancel = context.WithCancel(context.Background())
+	test.Cleanup(cancel)
+	runTask(test, func() {
+		var err = server.Serve(ctx, listener)
+		if err != nil {
+			test.Logf("test server: Serve: %v", err)
+		}
+	})
 
 	var resp = listener.next(test.Name(), strings.NewReader("invalid URL"))
+
 	expectResponse(test, resp, "59 "+status.Text(status.BadRequest)+"\r\n")
 }
 
-func setupEchoServer(t *testing.T) *fakeListener {
+func TestListenAndServe(test *testing.T) {
+	var server = &gemax.Server{
+		Addr: selectAddr(),
+		Logf: test.Logf,
+		Handler: func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+			_, _ = rw.Write([]byte(req.URL().String()))
+		},
+	}
+	test.Logf("loading test certs")
+	var cert, errCert = tls.LoadX509KeyPair("testdata/cert.pem", "testdata/key.pem")
+	if errCert != nil {
+		test.Fatal(errCert)
+	}
+	var cfg = &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{cert},
+	}
+	var ctx, cancel = context.WithCancel(context.Background())
+	test.Cleanup(cancel)
+	test.Logf("starting test server")
+	go func() {
+		test.Logf("test server: listening on %q", server.Addr)
+		var err = server.ListenAndServe(ctx, cfg)
+		if err != nil {
+			test.Logf("test server: Serve: %v", err)
+		}
+	}()
+	time.Sleep(time.Second)
+	var dialer = &tls.Dialer{
+		Config: &tls.Config{
+			//nolint:gosec // insecure for test purposes
+			InsecureSkipVerify: true,
+		},
+	}
+	test.Logf("connecting to %q", server.Addr)
+	var conn, errConn = dialer.DialContext(ctx, "tcp", server.Addr)
+	if errConn != nil {
+		test.Fatal(errConn)
+	}
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetDeadline(time.Now().Add(time.Second))
+
+	_, _ = io.WriteString(conn, "gemini://"+server.Addr+"/")
+
+	expectResponse(test, conn, "")
+}
+
+func setupEchoServer(t *testing.T) (*fakeListener, *gemax.Server) {
 	t.Helper()
 	var server = &gemax.Server{
 		Logf: t.Logf,
@@ -40,15 +105,7 @@ func setupEchoServer(t *testing.T) *fakeListener {
 		},
 	}
 	var listener = newListener(t.Name())
-	var ctx, cancel = context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	runTask(t, func() {
-		var err = server.Serve(ctx, listener)
-		if err != nil {
-			t.Logf("test server: Serve: %v", err)
-		}
-	})
-	return listener
+	return listener, server
 }
 
 func expectResponse(t *testing.T, got io.Reader, want string) {
@@ -184,4 +241,14 @@ func (p *chPipe) Close() error {
 	close(p.ch)
 	p.closed = true
 	return nil
+}
+
+func selectAddr() string {
+	var listener, errListener = net.Listen("tcp", "localhost:0")
+	if errListener != nil {
+		panic(errListener)
+	}
+	var addr = listener.Addr().String()
+	_ = listener.Close()
+	return addr
 }
