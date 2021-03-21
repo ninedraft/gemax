@@ -3,7 +3,9 @@ package gemax_test
 import (
 	"bytes"
 	"context"
-	"net/url"
+	urlpkg "net/url"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ninedraft/gemax"
@@ -30,13 +32,38 @@ func TestServeContent(test *testing.T) {
 	}
 }
 
+func TestQuery(test *testing.T) {
+	var t = func(query string, expected []string) {
+		var name = query + "->[" + strings.Join(expected, ",") + "]"
+		test.Run(name, func(test *testing.T) {
+			var parsed, errParse = urlpkg.ParseQuery(query)
+			if errParse != nil {
+				panic("invalid test query value: " + errParse.Error())
+			}
+			test.Logf("parsed query: %+q", parsed)
+
+			var values = gemax.Query(parsed)
+
+			if !reflect.DeepEqual(values, expected) {
+				test.Errorf("expected %q, got %q", expected, values)
+			}
+		})
+	}
+
+	t("query&foo=bar", []string{"query"})
+	t("query=&foo=bar", []string{"query"})
+	t("query&foo=bar,1", []string{"query"})
+	t("query&foo=bar&query", []string{"query"})
+	t("foo=bar", []string{})
+}
+
 type request struct {
 	remoteAddr string
 	url        string
 }
 
-func (req *request) URL() *url.URL {
-	var u, _ = url.Parse(req.url)
+func (req *request) URL() *urlpkg.URL {
+	var u, _ = urlpkg.Parse(req.url)
 	return u
 }
 
