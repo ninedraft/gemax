@@ -5,6 +5,7 @@ import (
 	"io"
 	urlpkg "net/url"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/ninedraft/gemax/status"
@@ -63,16 +64,27 @@ func ServeContent(contentType string, content []byte) Handler {
 	}
 }
 
-// Query returns request query string.
-// It expects the vanilla gemini "?query_string" format,
-// so if query contains multiple key=value pairs, then returns false.
-func Query(req IncomingRequest) (string, bool) {
-	var query = req.URL().Query()
-	if len(query) != 1 {
-		return "", false
+// Query extracts canonical gemini query values
+// from url query part. Values are sorted in ascending order.
+// Expected values:
+//		?query&key=value => [query]
+//		?a&b=&key=value => [a, b]
+func Query(query urlpkg.Values) []string {
+	var keys = make([]string, 0, len(query))
+	for key, values := range query {
+		if allStringsEmpty(values) {
+			keys = append(keys, key)
+		}
 	}
-	for key := range req.URL().Query() {
-		return key, true
+	sort.Strings(keys)
+	return keys
+}
+
+func allStringsEmpty(items []string) bool {
+	for _, value := range items {
+		if value != "" {
+			return false
+		}
 	}
-	return "", false
+	return true
 }
