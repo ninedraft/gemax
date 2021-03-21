@@ -72,10 +72,19 @@ func ServeContent(contentType string, content []byte) Handler {
 func Query(query urlpkg.Values) []string {
 	var keys = make([]string, 0, len(query))
 	for key, values := range query {
-		if len(values) == 0 {
+		if allStringsEmpty(values) {
 			keys = append(keys, key)
 		}
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func allStringsEmpty(items []string) bool {
+	for _, value := range items {
+		if value != "" {
+			return false
+		}
+	}
+	return true
 }
