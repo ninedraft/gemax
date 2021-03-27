@@ -21,6 +21,8 @@ type Client struct {
 	once            sync.Once
 }
 
+const readerBufSize = 16 << 10
+
 func (client *Client) Fetch(ctx context.Context, url string) (*Response, error) {
 	client.init()
 	var u, errParseURL = urlpkg.Parse(url)
@@ -51,7 +53,7 @@ func (client *Client) Fetch(ctx context.Context, url string) (*Response, error) 
 		return nil, fmt.Errorf("sending request: %w", errWrite)
 	}
 
-	var re = bufreader.New(conn, 16<<10, client.MaxResponseSize)
+	var re = bufreader.New(conn, readerBufSize)
 	var code, meta, errHeader = ParseResponseHeader(re)
 	if errHeader != nil {
 		return nil, errHeader
