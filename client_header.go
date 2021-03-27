@@ -2,6 +2,7 @@ package gemax
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -43,11 +44,12 @@ func ParseResponseHeader(re io.ByteReader) (status.Code, string, error) {
 
 	const codePrefixSize = 3
 	if len(line) < codePrefixSize {
-		return -1, "", ErrInvalidResponse
+		return -1, "", fmt.Errorf("%w: header %q is too short: %d bytes", ErrInvalidResponse, line, len(line))
 	}
-	var code, errCode = strconv.Atoi(line[:codePrefixSize])
+	var code, errCode = strconv.Atoi(line[:codePrefixSize-1])
 	if errCode != nil {
-		return -1, "", ErrInvalidResponse
+		var err = fmt.Errorf("parsing status code: %w", errCode)
+		return -1, "", multierr.Combine(ErrInvalidResponse, err)
 	}
 	var meta = line[codePrefixSize:]
 	return status.Code(code), meta, nil
