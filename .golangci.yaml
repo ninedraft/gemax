@@ -15,7 +15,12 @@ output:
 
 issues:
   exclude: [] # list of regexps of issue texts to exclude
-  exclude-rules: [] # path, linter, text and source exclude rules
+  exclude-rules: # path, linter, text and source exclude rules
+    - path: _test\.go
+      linters:
+        - gocognit
+        - gocyclo
+
   exclude-use-default: false # use default exclude patterns
   max-issues-per-linter: 0 # maximum issues count per one linter
   max-same-issues: 0 # maximum issues count with same text
@@ -78,6 +83,7 @@ linters-settings:
     list-type: blacklist
     include-go-root: true
     packages:
+      []
       # - net/context
     packages-with-error-messages:
       # - context: "context instead"
@@ -130,7 +136,7 @@ linters-settings:
   gomnd:
     settings:
       mnd:
-        checks: argument,case,condition,operation,return,assign
+        checks: [argument, case, condition, operation, return, assign]
 
   govet:
     check-shadowing: true
@@ -141,7 +147,6 @@ linters-settings:
       - atomic # check for common mistakes using the sync/atomic package
       - bools # check for common mistakes involving boolean operators
       - buildtag # check that +build tags are well-formed and correctly located
-      - composites # check for unkeyed composite literals
       - copylocks # check for locks erroneously passed by value
       - errorsas # report passing non-pointer or non-error values to errors.As
       - loopclosure # check references to loop variables from within nested functions
