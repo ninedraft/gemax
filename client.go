@@ -15,6 +15,8 @@ import (
 	"github.com/ninedraft/gemax/status"
 )
 
+// Client is used to fetch gemini resources.
+// Empty client value cane be considered as initialized.
 type Client struct {
 	MaxResponseSize int64
 	Dial            func(ctx context.Context, host string, cfg *tls.Config) (net.Conn, error)
@@ -23,6 +25,7 @@ type Client struct {
 
 const readerBufSize = 16 << 10
 
+// Fetch gemini resource.
 func (client *Client) Fetch(ctx context.Context, url string) (*Response, error) {
 	client.init()
 	var u, errParseURL = urlpkg.Parse(url)
@@ -83,6 +86,7 @@ func (client *Client) init() {
 	client.once.Do(func() {})
 }
 
+// Response contains parsed server response.
 type Response struct {
 	Status status.Code
 	Meta   string
