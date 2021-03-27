@@ -1,3 +1,4 @@
+// Package bufreader provides buffered reader-closer gadget.
 package bufreader
 
 import (
@@ -6,6 +7,8 @@ import (
 )
 
 type (
+	// Reader is a buffered reader-closer.
+	// It can be reused.
 	Reader struct {
 		closer
 		*buf
@@ -16,24 +19,24 @@ type (
 )
 
 const (
-	DefaultMaxSize    = 1 << 20
+	// DefaultBufferSize is used if bufSize is <= 0.
 	DefaultBufferSize = 16 << 10
 )
 
-func New(re io.ReadCloser, bufSize int, max int64) *Reader {
+// New creates a new buffered reader.
+func New(re io.ReadCloser, bufSize int) *Reader {
 	if bufSize <= 0 {
 		bufSize = DefaultBufferSize
 	}
-	if max <= 0 {
-		max = DefaultMaxSize
-	}
-	var buf = bufio.NewReaderSize(io.LimitReader(re, max), bufSize)
+	var buf = bufio.NewReaderSize(re, bufSize)
 	return &Reader{
 		closer: re,
 		buf:    buf,
 	}
 }
 
+// Reset sets internal state and forces Reader to use provided reader.
+// Provided reader can be nil.
 func (re *Reader) Reset(rc io.ReadCloser) {
 	re.closer = rc
 	re.buf.Reset(rc)
