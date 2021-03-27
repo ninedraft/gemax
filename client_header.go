@@ -16,18 +16,20 @@ var errInvalidResponse = errors.New("invalid server response")
 
 func ParseResponseHeader(re io.ByteReader) (status.Code, string, error) {
 	var buf strings.Builder
+	var ok bool
 	for i := 0; i < MaxHeaderSize; i++ {
 		var ru, errRune = re.ReadByte()
 		if errRune != nil {
 			return -1, "", multierr.Combine(errInvalidResponse, errRune)
 		}
 		if ru == '\n' {
+			ok = true
 			break
 		}
-		if i == MaxHeaderSize {
-			return -1, "", errInvalidResponse
-		}
-		buf.WriteByte(ru)
+		_ = buf.WriteByte(ru)
+	}
+	if !ok {
+		return -1, "", errInvalidResponse
 	}
 	var line = strings.TrimRight(buf.String(), "\r")
 
