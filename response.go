@@ -20,14 +20,12 @@ type responseWriter struct {
 	status        status.Code
 	statusWritten bool
 	isClosed      bool
-	*bufwriterAlias
+	writer        *bufwriter.Writer
 }
-
-type bufwriterAlias = bufwriter.Writer
 
 func newResponseWriter(wr io.WriteCloser) *responseWriter {
 	return &responseWriter{
-		bufwriterAlias: newBufferedWriter(wr),
+		writer: newBufferedWriter(wr),
 	}
 }
 
@@ -38,7 +36,7 @@ func (rw *responseWriter) WriteStatus(code status.Code, meta string) {
 	if code == status.Success && meta == "" {
 		meta = MIMEGemtext
 	}
-	_, _ = fmt.Fprintf(rw.bufwriterAlias, "%d %s\r\n", code, meta)
+	_, _ = fmt.Fprintf(rw.writer, "%d %s\r\n", code, meta)
 	rw.status = code
 	rw.statusWritten = true
 }
@@ -48,7 +46,7 @@ func (rw *responseWriter) Write(data []byte) (int, error) {
 		return 0, io.ErrNoProgress
 	}
 	rw.WriteStatus(status.Success, MIMEGemtext)
-	return rw.bufwriterAlias.Write(data)
+	return rw.writer.Write(data)
 }
 
 var errAlreadyClosed = errors.New("already closed")
@@ -59,9 +57,9 @@ func (rw *responseWriter) Close() error {
 	}
 	rw.WriteStatus(status.Success, MIMEGemtext)
 	rw.isClosed = true
-	var errClose = rw.bufwriterAlias.Close()
-	putBufferedWriter(rw.bufwriterAlias)
-	rw.bufwriterAlias = nil
+	var errClose = rw.writer.Close()
+	putBufferedWriter(rw.writer)
+	rw.writer = nil
 	return errClose
 }
 

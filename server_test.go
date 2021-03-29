@@ -54,8 +54,7 @@ func TestListenAndServe(test *testing.T) {
 		Addr: "localhost:40423",
 		Logf: test.Logf,
 		Handler: func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
-			var q = gemax.Query(req.URL().Query())
-			fmt.Fprintf(rw, "=>%s?%sa\r\n", req.URL().Path, strings.Join(q, ""))
+			_, _ = io.WriteString(rw, "example text")
 		},
 	}
 	test.Logf("loading test certs")
@@ -85,6 +84,8 @@ func TestListenAndServe(test *testing.T) {
 		return
 	}
 	defer func() { _ = resp.Close() }()
+
+	expectResponse(test, resp, "example text")
 	var data, errRead = io.ReadAll(resp)
 	test.Logf("%s / %v", data, errRead)
 }
