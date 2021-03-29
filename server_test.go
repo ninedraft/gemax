@@ -51,10 +51,11 @@ func TestServerBadRequest(test *testing.T) {
 
 func TestListenAndServe(test *testing.T) {
 	var server = &gemax.Server{
-		Addr: selectAddr(),
+		Addr: "localhost:40423",
 		Logf: test.Logf,
 		Handler: func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
-			_, _ = rw.Write([]byte(req.URL().String()))
+			var q = gemax.Query(req.URL().Query())
+			fmt.Fprintf(rw, "=>%s?%sa\r\n", req.URL().Path, strings.Join(q, ""))
 		},
 	}
 	test.Logf("loading test certs")
@@ -77,23 +78,15 @@ func TestListenAndServe(test *testing.T) {
 		}
 	}()
 	time.Sleep(time.Second)
-	var dialer = &tls.Dialer{
-		Config: &tls.Config{
-			//nolint:gosec // insecure for test purposes
-			InsecureSkipVerify: true,
-		},
+	var client = &gemax.Client{}
+	var resp, errFetch = client.Fetch(ctx, "gemini://"+server.Addr)
+	if errFetch != nil {
+		test.Error("fetching: ", errFetch)
+		return
 	}
-	test.Logf("connecting to %q", server.Addr)
-	var conn, errConn = dialer.DialContext(ctx, "tcp", server.Addr)
-	if errConn != nil {
-		test.Fatal(errConn)
-	}
-	defer func() { _ = conn.Close() }()
-	_ = conn.SetDeadline(time.Now().Add(time.Second))
-
-	_, _ = io.WriteString(conn, "gemini://"+server.Addr+"/")
-
-	expectResponse(test, conn, "")
+	defer func() { _ = resp.Close() }()
+	var data, errRead = io.ReadAll(resp)
+	test.Logf("%s / %v", data, errRead)
 }
 
 func setupEchoServer(t *testing.T) (*fakeListener, *gemax.Server) {
@@ -241,14 +234,4 @@ func (p *chPipe) Close() error {
 	close(p.ch)
 	p.closed = true
 	return nil
-}
-
-func selectAddr() string {
-	var listener, errListener = net.Listen("tcp", "localhost:0")
-	if errListener != nil {
-		panic(errListener)
-	}
-	var addr = listener.Addr().String()
-	_ = listener.Close()
-	return addr
 }
