@@ -78,6 +78,7 @@ func (client *Client) dial(ctx context.Context, host string, cfg *tls.Config) (n
 	}
 	var tlsDialer = &tls.Dialer{
 		NetDialer: &net.Dialer{},
+		Config:    cfg,
 	}
 	return tlsDialer.DialContext(ctx, "tcp", host)
 }
