@@ -2,6 +2,7 @@ package gemax
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"sync"
@@ -14,6 +15,7 @@ type Handler func(ctx context.Context, rw ResponseWriter, req IncomingRequest)
 
 // Server is gemini protocol server.
 type Server struct {
+	Addr        string
 	Handler     Handler
 	ConnContext func(ctx context.Context, conn net.Conn) context.Context
 	Logf        func(format string, args ...interface{})
@@ -23,14 +25,30 @@ type Server struct {
 	listeners map[net.Listener]struct{}
 }
 
-// Serve starts server on provided listener. Provided context will be passed to handlers.
-func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
+func (server *Server) init() {
 	if server.conns == nil {
 		server.conns = map[*connTrack]struct{}{}
 	}
 	if server.listeners == nil {
 		server.listeners = map[net.Listener]struct{}{}
 	}
+}
+
+// ListenAndServe starts a TLS gemini server at specified server.
+func (server *Server) ListenAndServe(ctx context.Context, tlsCfg *tls.Config) error {
+	server.init()
+	var listener, errListener = tls.Listen("tcp", server.Addr, tlsCfg)
+	if errListener != nil {
+		return fmt.Errorf("creating listener: %w", errListener)
+	}
+	server.addListener(listener)
+	defer ignoreErr(listener.Close)
+	return server.Serve(ctx, listener)
+}
+
+// Serve starts server on provided listener. Provided context will be passed to handlers.
+func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
+	server.init()
 	server.addListener(listener)
 	for {
 		var conn, errAccept = listener.Accept()
