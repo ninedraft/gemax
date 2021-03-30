@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ninedraft/gemax"
-	"github.com/ninedraft/gemax/status"
+	"github.com/ninedraft/gemax/gemax"
+	"github.com/ninedraft/gemax/gemax/status"
 )
 
 func TestServerSuccess(test *testing.T) {

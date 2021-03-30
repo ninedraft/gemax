@@ -12,7 +12,7 @@ MIT
 
 ## Installation
 
-`go install github.com/ninedraft/gemax`
+`go install github.com/ninedraft/gemax/gemax`
 
 ## Examples
 

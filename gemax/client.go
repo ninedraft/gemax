@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ninedraft/gemax/internal/bufreader"
-	"github.com/ninedraft/gemax/status"
+	"github.com/ninedraft/gemax/gemax/internal/bufreader"
+	"github.com/ninedraft/gemax/gemax/status"
 )
 
 // Client is used to fetch gemini resources.
