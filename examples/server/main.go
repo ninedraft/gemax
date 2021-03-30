@@ -6,7 +6,7 @@ import (
 	"embed"
 	"log"
 
-	gemax "github.com/ninedraft/gemax"
+	gemax "github.com/ninedraft/gemax/gemax"
 )
 
 func main() {

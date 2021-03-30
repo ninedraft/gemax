@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/ninedraft/gemax/status"
+	"github.com/ninedraft/gemax/gemax/status"
 )
 
 // Handler describes a gemini protocol handler.

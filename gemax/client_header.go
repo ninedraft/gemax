@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ninedraft/gemax/internal/multierr"
-	"github.com/ninedraft/gemax/status"
+	"github.com/ninedraft/gemax/gemax/internal/multierr"
+	"github.com/ninedraft/gemax/gemax/status"
 )
 
 // MaxHeaderSize is used while parsing server responses.

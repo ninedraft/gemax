@@ -6,8 +6,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/ninedraft/gemax/internal/bufwriter"
-	"github.com/ninedraft/gemax/status"
+	"github.com/ninedraft/gemax/gemax/internal/bufwriter"
+	"github.com/ninedraft/gemax/gemax/status"
 )
 
 // ResponseWriter describes a server side response writer.

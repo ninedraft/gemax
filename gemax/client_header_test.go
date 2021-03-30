@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ninedraft/gemax"
-	"github.com/ninedraft/gemax/status"
+	"github.com/ninedraft/gemax/gemax"
+	"github.com/ninedraft/gemax/gemax/status"
 )
 
 func TestParseResponseHeader(test *testing.T) {
