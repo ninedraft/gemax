@@ -47,7 +47,7 @@ const (
 	// should continue to request the resource at the original address and
 	// should not performance convenience actions like automatically updating
 	// bookmarks.  There is no response body.
-	Redirect Code = 30 // REDIRECT - TEMPORAR
+	Redirect Code = 30 // REDIRECT - TEMPORARY
 
 	// RedirectPermanent means that the requested resource should be consistently requested
 	// from the new URL provided in future. Tools like search engine indexers or
