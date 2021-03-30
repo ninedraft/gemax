@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"net/url"
 	"sync"
 
 	"github.com/ninedraft/gemax/status"
@@ -15,7 +16,10 @@ type Handler func(ctx context.Context, rw ResponseWriter, req IncomingRequest)
 
 // Server is gemini protocol server.
 type Server struct {
-	Addr        string
+	Addr string
+	// Hosts expected by server.
+	// If empty, then every host will be valid.
+	Hosts       []string
 	Handler     Handler
 	ConnContext func(ctx context.Context, conn net.Conn) context.Context
 	Logf        func(format string, args ...interface{})
@@ -23,15 +27,17 @@ type Server struct {
 	mu        sync.RWMutex
 	conns     map[*connTrack]struct{}
 	listeners map[net.Listener]struct{}
+
+	once  sync.Once
+	hosts map[string]struct{}
 }
 
 func (server *Server) init() {
-	if server.conns == nil {
+	server.once.Do(func() {
 		server.conns = map[*connTrack]struct{}{}
-	}
-	if server.listeners == nil {
 		server.listeners = map[net.Listener]struct{}{}
-	}
+		server.buildHosts()
+	})
 }
 
 // ListenAndServe starts a TLS gemini server at specified server.
@@ -101,6 +107,12 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 		rw.WriteStatus(code, status.Text(code))
 		return
 	}
+	if !server.validHost(req.URL()) {
+		server.logf("WARN: bad request: unknown host %q", req.URL().Host)
+		rw.WriteStatus(status.PermanentFailure, "host not found")
+		return
+	}
+
 	server.Handler(ctx, rw, req)
 }
 
@@ -135,5 +147,28 @@ type connTrack struct {
 func (server *Server) logf(format string, args ...interface{}) {
 	if server.Logf != nil {
 		server.Logf(format, args...)
+	}
+}
+
+func (server *Server) validHost(u *url.URL) bool {
+	if u.Host == "" {
+		return false
+	}
+	if len(server.hosts) == 0 {
+		return true
+	}
+	var host = u.Host
+	var hostname = u.Hostname()
+	var _, hostOk = server.hosts[host]
+	var _, hostnameOk = server.hosts[hostname]
+	return hostOk || hostnameOk
+}
+
+func (server *Server) buildHosts() {
+	if server.hosts == nil {
+		server.hosts = map[string]struct{}{}
+	}
+	for _, host := range server.Hosts {
+		server.hosts[host] = struct{}{}
 	}
 }
