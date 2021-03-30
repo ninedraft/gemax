@@ -17,6 +17,7 @@ import (
 
 func TestServerSuccess(test *testing.T) {
 	var listener, server = setupEchoServer(test)
+	server.Hosts = []string{"example.com"}
 	defer func() { _ = listener.Close() }()
 	var ctx, cancel = context.WithCancel(context.Background())
 	test.Cleanup(cancel)
@@ -47,6 +48,24 @@ func TestServerBadRequest(test *testing.T) {
 	var resp = listener.next(test.Name(), strings.NewReader("invalid URL"))
 
 	expectResponse(test, resp, "59 "+status.Text(status.BadRequest)+"\r\n")
+}
+
+func TestServerInvalidHost(test *testing.T) {
+	var listener, server = setupEchoServer(test)
+	server.Hosts = []string{"example.com"}
+	defer func() { _ = listener.Close() }()
+	var ctx, cancel = context.WithCancel(context.Background())
+	test.Cleanup(cancel)
+	runTask(test, func() {
+		var err = server.Serve(ctx, listener)
+		if err != nil {
+			test.Logf("test server: Serve: %v", err)
+		}
+	})
+
+	var resp = listener.next(test.Name(), strings.NewReader("gemini://another.com/path"))
+
+	expectResponse(test, resp, "50 host not found\r\n")
 }
 
 func TestListenAndServe(test *testing.T) {
