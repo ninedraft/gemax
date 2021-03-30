@@ -39,6 +39,9 @@ func (rw *responseWriter) WriteStatus(code status.Code, meta string) {
 	_, _ = fmt.Fprintf(rw.writer, "%d %s\r\n", code, meta)
 	rw.status = code
 	rw.statusWritten = true
+	if code != status.Success {
+		_ = rw.close()
+	}
 }
 
 func (rw *responseWriter) Write(data []byte) (int, error) {
@@ -56,6 +59,10 @@ func (rw *responseWriter) Close() error {
 		return errAlreadyClosed
 	}
 	rw.WriteStatus(status.Success, MIMEGemtext)
+	return rw.close()
+}
+
+func (rw *responseWriter) close() error {
 	rw.isClosed = true
 	var errClose = rw.writer.Close()
 	putBufferedWriter(rw.writer)
