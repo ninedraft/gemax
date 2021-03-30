@@ -8,4 +8,5 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - run: curl https://proxy.golang.org/github.com/ninedraft/gemax/@v/${{ github.ref }}.info
+      - uses: actions/checkout@v2
+      - run: ./scripts/publish.sh ${{ github.ref }}
