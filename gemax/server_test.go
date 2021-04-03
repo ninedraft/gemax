@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ninedraft/gemax/gemax"
+	"github.com/ninedraft/gemax/gemax/internal/testaddr"
 	"github.com/ninedraft/gemax/gemax/status"
 )
 
@@ -66,6 +67,35 @@ func TestServerInvalidHost(test *testing.T) {
 	var resp = listener.next(test.Name(), strings.NewReader("gemini://another.com/path"))
 
 	expectResponse(test, resp, "50 host not found\r\n")
+}
+
+func TestServerCancelListen(test *testing.T) {
+	var server = &gemax.Server{
+		Addr: testaddr.Addr(),
+		Logf: test.Logf,
+		Handler: func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+			_, _ = io.WriteString(rw, "example text")
+		},
+	}
+	test.Logf("loading test certs")
+	var cert, errCert = tls.LoadX509KeyPair("testdata/cert.pem", "testdata/key.pem")
+	if errCert != nil {
+		test.Fatal(errCert)
+	}
+	var cfg = &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{cert},
+	}
+	var ctx, cancel = context.WithCancel(context.Background())
+	test.Cleanup(cancel)
+	test.Logf("starting test server")
+	test.Logf("test server: listening on %q", server.Addr)
+
+	time.AfterFunc(100*time.Millisecond, cancel)
+	var err = server.ListenAndServe(ctx, cfg)
+	if !errors.Is(err, net.ErrClosed) {
+		test.Errorf("unexpected error %v, while %q is expected", err, net.ErrClosed)
+	}
 }
 
 func TestListenAndServe(test *testing.T) {
