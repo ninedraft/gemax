@@ -43,10 +43,18 @@ func (server *Server) init() {
 // ListenAndServe starts a TLS gemini server at specified server.
 func (server *Server) ListenAndServe(ctx context.Context, tlsCfg *tls.Config) error {
 	server.init()
-	var listener, errListener = tls.Listen("tcp", server.Addr, tlsCfg)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var lc = net.ListenConfig{}
+	var tcpListener, errListener = lc.Listen(ctx, "tcp", server.Addr)
 	if errListener != nil {
 		return fmt.Errorf("creating listener: %w", errListener)
 	}
+	var listener = tls.NewListener(tcpListener, tlsCfg)
+	go func() {
+		<-ctx.Done()
+		_ = listener.Close()
+	}()
 	server.addListener(listener)
 	defer ignoreErr(listener.Close)
 	return server.Serve(ctx, listener)
