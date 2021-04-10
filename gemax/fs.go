@@ -38,6 +38,7 @@ func (fileSystem *FileSystem) Serve(ctx context.Context, rw ResponseWriter, req 
 
 	var p = path.Join(fileSystem.Prefix, req.URL().Path)
 	p = strings.TrimPrefix(p, "/")
+	fileSystem.logf("INFO: serving %s", p)
 
 	var file, errOpen = fileSystem.FS.Open(p)
 	switch {
