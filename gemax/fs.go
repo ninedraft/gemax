@@ -36,8 +36,8 @@ var _ Handler = new(FileSystem).Serve
 func (fileSystem *FileSystem) Serve(ctx context.Context, rw ResponseWriter, req IncomingRequest) {
 	fileSystem.logf("INFO: %s is requested from %s", req.URL(), req.RemoteAddr())
 
-	var prefix = strings.Trim(fileSystem.Prefix, "/")
-	var p = path.Join(prefix, req.URL().Path)
+	var p = path.Join(fileSystem.Prefix, req.URL().Path)
+	p = strings.TrimPrefix(p, "/")
 
 	var file, errOpen = fileSystem.FS.Open(p)
 	switch {
