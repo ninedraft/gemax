@@ -47,7 +47,7 @@ func (fileSystem *FileSystem) Serve(ctx context.Context, rw ResponseWriter, req 
 		rw.WriteStatus(code, code.String()+": "+req.URL().Path)
 		return
 	case errOpen != nil:
-		fileSystem.logf("ERROR: serving %s: opening file: %v", p, file)
+		fileSystem.logf("ERROR: serving %s: opening file: %v", p, errOpen)
 		rw.WriteStatus(status.ServerUnavailable, "")
 		return
 	}
