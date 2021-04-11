@@ -117,7 +117,12 @@ func (fileSystem *FileSystem) serveDir(rw ResponseWriter, req IncomingRequest, d
 		rw.WriteStatus(status.ServerUnavailable, "")
 		return
 	}
-	_, _ = io.WriteString(rw, "# "+path.Base(dir)+"\n\n")
+
+	var dirname = path.Base(dir)
+	if dirname == "." || dirname == "" {
+		dirname = req.URL().Host + "/"
+	}
+	_, _ = io.WriteString(rw, "# "+dirname+"\n\n")
 	for _, entry := range entries {
 		var fileLink = path.Join(req.URL().Path, entry.Name())
 		var _, errWriteEntry = fmt.Fprintf(rw, "=> %s %s \r\n", fileLink, entry.Name())
