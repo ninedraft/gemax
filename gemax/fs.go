@@ -108,14 +108,16 @@ func (fileSystem *FileSystem) serveFileHead(rw ResponseWriter, name string, file
 }
 
 func (fileSystem *FileSystem) serveDir(rw ResponseWriter, req IncomingRequest, dir string) {
-	fileSystem.serveIndexFile(rw, dir, "index.gmi", "index.gemini")
+	if fileSystem.serveIndexFile(rw, dir, "index.gmi", "index.gemini") {
+		return
+	}
 	var entries, errEntries = fs.ReadDir(fileSystem.FS, dir)
 	if errEntries != nil {
 		fileSystem.Logf("ERROR: serving dir %s: reading dir content: %v", dir, errEntries)
 		rw.WriteStatus(status.ServerUnavailable, "")
 		return
 	}
-	_, _ = rw.Write([]byte("\r\n"))
+	_, _ = io.WriteString(rw, "# "+path.Base(dir)+"\n\n")
 	for _, entry := range entries {
 		var fileLink = path.Join(req.URL().Path, entry.Name())
 		var _, errWriteEntry = fmt.Fprintf(rw, "=> %s %s \r\n", fileLink, entry.Name())
@@ -126,7 +128,7 @@ func (fileSystem *FileSystem) serveDir(rw ResponseWriter, req IncomingRequest, d
 	}
 }
 
-func (fileSystem *FileSystem) serveIndexFile(rw ResponseWriter, dir string, names ...string) {
+func (fileSystem *FileSystem) serveIndexFile(rw ResponseWriter, dir string, names ...string) bool {
 	for _, name := range names {
 		var indexFile = path.Join(dir, name)
 		var data, err = fs.ReadFile(fileSystem.FS, indexFile)
@@ -135,9 +137,10 @@ func (fileSystem *FileSystem) serveIndexFile(rw ResponseWriter, dir string, name
 			continue
 		}
 		fileSystem.serveFile(rw, indexFile, bytes.NewReader(data))
-		return
+		return true
 	}
 	fileSystem.logf("WARN: serving dir %s: searching index files %v: no index files were found", dir, names)
+	return false
 }
 
 func (fileSystem *FileSystem) logf(format string, args ...interface{}) {
