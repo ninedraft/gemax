@@ -73,7 +73,7 @@ func TestServerCancelListen(test *testing.T) {
 	var server = &gemax.Server{
 		Addr: testaddr.Addr(),
 		Logf: test.Logf,
-		Handler: func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+		Handler: func(_ context.Context, rw gemax.ResponseWriter, _ gemax.IncomingRequest) {
 			_, _ = io.WriteString(rw, "example text")
 		},
 	}
@@ -102,7 +102,7 @@ func TestListenAndServe(test *testing.T) {
 	var server = &gemax.Server{
 		Addr: "localhost:40423",
 		Logf: test.Logf,
-		Handler: func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+		Handler: func(_ context.Context, rw gemax.ResponseWriter, _ gemax.IncomingRequest) {
 			_, _ = io.WriteString(rw, "example text")
 		},
 	}
@@ -143,7 +143,7 @@ func setupEchoServer(t *testing.T) (*fakeListener, *gemax.Server) {
 	t.Helper()
 	var server = &gemax.Server{
 		Logf: t.Logf,
-		Handler: func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+		Handler: func(_ context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
 			_, _ = rw.Write([]byte(req.URL().String()))
 		},
 	}
