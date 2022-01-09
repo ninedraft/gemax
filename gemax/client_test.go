@@ -45,7 +45,7 @@ func TestClientTLS(test *testing.T) {
 	if errListenTCP != nil {
 		test.Fatalf("starting a TCP listener: %v", errListenTCP)
 	}
-	defer tcpListener.Close()
+	defer func() { _ = tcpListener.Close() }()
 
 	var cert, errCert = tls.LoadX509KeyPair("testdata/cert.pem", "testdata/key.pem")
 	if errCert != nil {
@@ -62,7 +62,7 @@ func TestClientTLS(test *testing.T) {
 	var listener = tls.NewListener(tcpListener, tlsCfg)
 	go func() {
 		<-ctx.Done()
-		listener.Close()
+		_ = listener.Close()
 	}()
 	go func() {
 		var conn, errAccept = listener.Accept()
@@ -70,14 +70,14 @@ func TestClientTLS(test *testing.T) {
 			test.Log("accepting test connection:", errAccept)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		var testdata, errTestData = testClientPages.ReadFile("testdata/client/pages/success.com")
 		if errTestData != nil {
 			test.Log("reading test data:", errTestData)
 			return
 		}
-		conn.Write(testdata)
+		_, _ = conn.Write(testdata)
 	}()
 
 	var client = &gemax.Client{}
@@ -85,7 +85,7 @@ func TestClientTLS(test *testing.T) {
 	if errFetch != nil {
 		test.Fatal("fetching test data:", errFetch)
 	}
-	defer resp.Close()
+	defer func() { _ = resp.Close() }()
 
 	var responseText, _ = io.ReadAll(resp)
 	test.Logf("response: %q", responseText)
