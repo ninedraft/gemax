@@ -1,6 +1,7 @@
 package gemax_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"embed"
@@ -40,12 +41,8 @@ func TestClient(test *testing.T) {
 }
 
 func TestClientTLS(test *testing.T) {
-	var addr = testaddr.Addr()
-	var tcpListener, errListenTCP = net.Listen("tcp", addr)
-	if errListenTCP != nil {
-		test.Fatalf("starting a TCP listener: %v", errListenTCP)
-	}
-	defer func() { _ = tcpListener.Close() }()
+	var ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
 
 	var cert, errCert = tls.LoadX509KeyPair("testdata/cert.pem", "testdata/key.pem")
 	if errCert != nil {
@@ -56,29 +53,7 @@ func TestClientTLS(test *testing.T) {
 		Certificates: []tls.Certificate{cert},
 	}
 
-	var ctx, cancel = context.WithCancel(context.Background())
-	defer cancel()
-
-	var listener = tls.NewListener(tcpListener, tlsCfg)
-	go func() {
-		<-ctx.Done()
-		_ = listener.Close()
-	}()
-	go func() {
-		var conn, errAccept = listener.Accept()
-		if errAccept != nil {
-			test.Log("accepting test connection:", errAccept)
-			return
-		}
-		defer func() { _ = conn.Close() }()
-
-		var testdata, errTestData = testClientPages.ReadFile("testdata/client/pages/success.com")
-		if errTestData != nil {
-			test.Log("reading test data:", errTestData)
-			return
-		}
-		_, _ = conn.Write(testdata)
-	}()
+	var addr = dumbServer(ctx, test, tlsCfg)
 
 	var client = &gemax.Client{}
 	var resp, errFetch = client.Fetch(ctx, "gemini://"+addr)
@@ -88,5 +63,37 @@ func TestClientTLS(test *testing.T) {
 	defer func() { _ = resp.Close() }()
 
 	var responseText, _ = io.ReadAll(resp)
-	test.Logf("response: %q", responseText)
+	if !bytes.Equal(responseText, []byte("\n# Hello world\n")) {
+		test.Fatalf("unexpected response: %q", responseText)
+	}
+}
+
+func dumbServer(ctx context.Context, test *testing.T, tlsCfg *tls.Config) (addr string) {
+	addr = testaddr.Addr()
+	var tcpListener, errListenTCP = net.Listen("tcp", addr)
+	if errListenTCP != nil {
+		test.Fatalf("starting a TCP listener: %v", errListenTCP)
+	}
+	test.Cleanup(func() { _ = tcpListener.Close() })
+
+	var listener = tls.NewListener(tcpListener, tlsCfg)
+	go func() {
+		<-ctx.Done()
+		_ = listener.Close()
+	}()
+
+	var testdata, errTestData = testClientPages.ReadFile("testdata/client/pages/success.com")
+	if errTestData != nil {
+		test.Fatal("reading test data:", errTestData)
+	}
+	go func() {
+		var conn, errAccept = listener.Accept()
+		if errAccept != nil {
+			test.Log("accepting test connection:", errAccept)
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		_, _ = conn.Write(testdata)
+	}()
+	return addr
 }
