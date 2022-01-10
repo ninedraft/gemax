@@ -87,6 +87,8 @@ func dumbServer(ctx context.Context, test *testing.T, tlsCfg *tls.Config) (addr 
 		test.Fatal("reading test data:", errTestData)
 	}
 	go func() {
+		defer func() { _ = listener.Close() }()
+
 		var conn, errAccept = listener.Accept()
 		if errAccept != nil {
 			test.Log("accepting test connection:", errAccept)
