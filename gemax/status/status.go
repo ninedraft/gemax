@@ -136,3 +136,26 @@ const (
 	// about the exact error.
 	ClientCertificateNotValid Code = 62 // CERTIFICATE NOT VALID
 )
+
+func AllCodes() []Code {
+	return []Code{
+		Input,
+		InputSensitive,
+		Success,
+		Redirect,
+		RedirectPermanent,
+		TemporaryFailure,
+		ServerUnavailable,
+		CGIError,
+		ProxyError,
+		SlowDown,
+		PermanentFailure,
+		NotFound,
+		Gone,
+		ProxyRequestRefused,
+		BadRequest,
+		ClientCertificateRequired,
+		CertificateNotAuthorized,
+		ClientCertificateNotValid,
+	}
+}
