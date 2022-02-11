@@ -1,9 +1,11 @@
 package gemax
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 )
 
 // MaxRequestSize is the maximum incoming request size in bytes.
@@ -14,6 +16,10 @@ type IncomingRequest interface {
 	URL() *url.URL
 	RemoteAddr() string
 }
+
+var (
+	errDotPath = errors.New("dots in path are not permitted")
+)
 
 // ParseIncomingRequest constructs an IncomingRequest from bytestream
 // and additional parameters (remote address for now).
@@ -27,6 +33,9 @@ func ParseIncomingRequest(re io.Reader, remoteAddr string) (IncomingRequest, err
 	var parsed, errParse = url.ParseRequestURI(u)
 	if errParse != nil {
 		return nil, fmt.Errorf("bad request: %w", errParse)
+	}
+	if strings.Contains(parsed.Path, "/..") {
+		return nil, errDotPath
 	}
 	return &incomingRequest{
 		url:        parsed,
