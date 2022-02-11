@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 
 	"github.com/ninedraft/gemax/gemax/internal/bufwriter"
@@ -36,6 +37,7 @@ func (rw *responseWriter) WriteStatus(code status.Code, meta string) {
 	if code == status.Success && meta == "" {
 		meta = MIMEGemtext
 	}
+	meta = metaSanitizer.Replace(meta)
 	_, _ = fmt.Fprintf(rw.writer, "%d %s\r\n", code, meta)
 	rw.status = code
 	rw.statusWritten = true
@@ -43,6 +45,12 @@ func (rw *responseWriter) WriteStatus(code status.Code, meta string) {
 		_ = rw.close()
 	}
 }
+
+var metaSanitizer = strings.NewReplacer(
+	"\r\n", "\t",
+	"\n", "\t",
+	"\r", "\t",
+)
 
 func (rw *responseWriter) Write(data []byte) (int, error) {
 	if rw.isClosed {
