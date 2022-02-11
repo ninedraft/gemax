@@ -139,6 +139,25 @@ func TestListenAndServe(test *testing.T) {
 	test.Logf("%s / %v", data, errRead)
 }
 
+// emulates michael-lazar/gemini-diagnostics localhost $PORT --checks='URLDotEscape'
+func TestURLDotEscape(test *testing.T) {
+	var listener, server = setupEchoServer(test)
+	server.Hosts = []string{"example.com"}
+	defer func() { _ = listener.Close() }()
+	var ctx, cancel = context.WithCancel(context.Background())
+	test.Cleanup(cancel)
+	runTask(test, func() {
+		var err = server.Serve(ctx, listener)
+		if err != nil {
+			test.Logf("test server: Serve: %v", err)
+		}
+	})
+
+	var resp = listener.next(test.Name(), strings.NewReader("gemini://example.com/../../\r\n"))
+
+	expectResponse(test, resp, "50 50 PERMANENT FAILURE\r\n")
+}
+
 func setupEchoServer(t *testing.T) (*fakeListener, *gemax.Server) {
 	t.Helper()
 	var server = &gemax.Server{
