@@ -53,7 +53,7 @@ func Redirect(rw ResponseWriter, req IncomingRequest, target string, code status
 
 // NotFound serves a not found error.
 func NotFound(rw ResponseWriter, req IncomingRequest) {
-	rw.WriteStatus(status.NotFound, req.URL().String()+" is not found\r\n")
+	rw.WriteStatus(status.NotFound, req.URL().String()+" is not found")
 }
 
 // ServeContent creates a handler, which serves provided bytes as static page.

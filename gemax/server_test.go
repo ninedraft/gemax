@@ -158,16 +158,67 @@ func TestURLDotEscape(test *testing.T) {
 	expectResponse(test, resp, "50 50 PERMANENT FAILURE\r\n")
 }
 
-func setupEchoServer(t *testing.T) (*fakeListener, *gemax.Server) {
+// emulates michael-lazar/gemini-diagnostics localhost 9999 --checks='PageNotFound'
+func TestPageNotFound(test *testing.T) {
+	test.Run("helper", func(test *testing.T) {
+		var listener, server = setupServer(test,
+			func(_ context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+				gemax.NotFound(rw, req)
+			})
+		server.Hosts = []string{"example.com"}
+		defer func() { _ = listener.Close() }()
+		var ctx, cancel = context.WithCancel(context.Background())
+		test.Cleanup(cancel)
+		runTask(test, func() {
+			var err = server.Serve(ctx, listener)
+			if err != nil {
+				test.Logf("test server: Serve: %v", err)
+			}
+		})
+
+		var resp = listener.next(test.Name(), strings.NewReader("gemini://example.com/notexist\r\n"))
+
+		expectResponse(test, resp, "51 gemini://example.com/notexist is not found\r\n")
+	})
+
+	test.Run("custom", func(test *testing.T) {
+		test.Log("meta must not interfere with response body")
+		var listener, server = setupServer(test,
+			func(_ context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+				rw.WriteStatus(status.NotFound, "page is not found\r\ndotdot")
+			})
+		server.Hosts = []string{"example.com"}
+		defer func() { _ = listener.Close() }()
+		var ctx, cancel = context.WithCancel(context.Background())
+		test.Cleanup(cancel)
+		runTask(test, func() {
+			var err = server.Serve(ctx, listener)
+			if err != nil {
+				test.Logf("test server: Serve: %v", err)
+			}
+		})
+
+		var resp = listener.next(test.Name(), strings.NewReader("gemini://example.com/notexist\r\n"))
+
+		expectResponse(test, resp, "51 page is not found\tdotdot\r\n")
+	})
+}
+
+func setupServer(t *testing.T, handler gemax.Handler) (*fakeListener, *gemax.Server) {
 	t.Helper()
 	var server = &gemax.Server{
-		Logf: t.Logf,
-		Handler: func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
-			_, _ = rw.Write([]byte(req.URL().String()))
-		},
+		Logf:    t.Logf,
+		Handler: handler,
 	}
 	var listener = newListener(t.Name())
 	return listener, server
+}
+
+func setupEchoServer(t *testing.T) (*fakeListener, *gemax.Server) {
+	t.Helper()
+	return setupServer(t, func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+		_, _ = rw.Write([]byte(req.URL().String()))
+	})
 }
 
 func expectResponse(t *testing.T, got io.Reader, want string) {
