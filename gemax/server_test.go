@@ -93,8 +93,8 @@ func TestServerCancelListen(test *testing.T) {
 
 	time.AfterFunc(100*time.Millisecond, cancel)
 	var err = server.ListenAndServe(ctx, cfg)
-	if !errors.Is(err, net.ErrClosed) {
-		test.Errorf("unexpected error %v, while %q is expected", err, net.ErrClosed)
+	if err != nil {
+		test.Errorf("unexpected error %v, while nil is expected", err)
 	}
 }
 

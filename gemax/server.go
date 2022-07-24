@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ninedraft/gemax/gemax/status"
 )
@@ -27,7 +28,7 @@ type Server struct {
 
 	mu        sync.RWMutex
 	conns     map[*connTrack]struct{}
-	listeners map[net.Listener]struct{}
+	listeners map[*listenTrack]struct{}
 
 	once  sync.Once
 	hosts map[string]struct{}
@@ -36,7 +37,7 @@ type Server struct {
 func (server *Server) init() {
 	server.once.Do(func() {
 		server.conns = map[*connTrack]struct{}{}
-		server.listeners = map[net.Listener]struct{}{}
+		server.listeners = map[*listenTrack]struct{}{}
 		server.buildHosts()
 	})
 }
@@ -52,22 +53,34 @@ func (server *Server) ListenAndServe(ctx context.Context, tlsCfg *tls.Config) er
 		return fmt.Errorf("creating listener: %w", errListener)
 	}
 	var listener = tls.NewListener(tcpListener, tlsCfg)
+
+	var track = server.addListener(listener)
+	defer server.removeListenTrack(track)
 	go func() {
 		<-ctx.Done()
-		_ = listener.Close()
+		server.logf("closing listener: %v", ctx.Err())
+		_ = track.Close()
 	}()
-	server.addListener(listener)
-	defer ignoreErr(listener.Close)
-	return server.Serve(ctx, listener)
+
+	defer ignoreErr(track.Close)
+	return server.serve(ctx, track)
 }
 
 // Serve starts server on provided listener. Provided context will be passed to handlers.
 func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 	server.init()
-	server.addListener(listener)
+	var track = &listenTrack{Listener: listener}
+	return server.serve(ctx, track)
+}
+
+func (server *Server) serve(ctx context.Context, listener *listenTrack) error {
+	server.init()
 	for {
 		var conn, errAccept = listener.Accept()
-		if errAccept != nil {
+		switch {
+		case errors.Is(errAccept, net.ErrClosed) && listener.IsClosed():
+			return nil
+		case errAccept != nil:
 			return fmt.Errorf("gemini server: %w", errAccept)
 		}
 		var track = server.addConn(conn)
@@ -143,10 +156,20 @@ func (server *Server) addConn(conn net.Conn) *connTrack {
 	return track
 }
 
-func (server *Server) addListener(listener net.Listener) {
+func (server *Server) addListener(listener net.Listener) *listenTrack {
 	server.mu.Lock()
 	defer server.mu.Unlock()
-	server.listeners[listener] = struct{}{}
+
+	var l = &listenTrack{Listener: listener}
+	server.listeners[l] = struct{}{}
+	return l
+}
+
+func (server *Server) removeListenTrack(track *listenTrack) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	delete(server.listeners, track)
 }
 
 func (server *Server) removeTrack(track *connTrack) {
@@ -157,6 +180,22 @@ func (server *Server) removeTrack(track *connTrack) {
 
 type connTrack struct {
 	c net.Conn
+}
+
+type listenTrack struct {
+	net.Listener
+	closeFlag int32
+}
+
+func (l *listenTrack) Close() error {
+	if atomic.CompareAndSwapInt32(&l.closeFlag, 0, 1) {
+		return l.Listener.Close()
+	}
+	return nil
+}
+
+func (l *listenTrack) IsClosed() bool {
+	return atomic.LoadInt32(&l.closeFlag) != 0
 }
 
 func (server *Server) logf(format string, args ...interface{}) {
