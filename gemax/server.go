@@ -59,7 +59,7 @@ func (server *Server) ListenAndServe(ctx context.Context, tlsCfg *tls.Config) er
 	go func() {
 		<-ctx.Done()
 		server.logf("closing listener: %v", ctx.Err())
-		_ = track.Close()
+		_ = track.CloseWith(ctx.Err())
 	}()
 
 	defer ignoreErr(track.Close)
@@ -79,7 +79,7 @@ func (server *Server) serve(ctx context.Context, listener *listenTrack) error {
 		var conn, errAccept = listener.Accept()
 		switch {
 		case errors.Is(errAccept, net.ErrClosed) && listener.IsClosed():
-			return nil
+			return fmt.Errorf("accept connection: %w", listener.errClose.Load().(error))
 		case errAccept != nil:
 			return fmt.Errorf("gemini server: %w", errAccept)
 		}
@@ -184,14 +184,20 @@ type connTrack struct {
 
 type listenTrack struct {
 	net.Listener
+	errClose  atomic.Value
 	closeFlag int32
 }
 
 func (l *listenTrack) Close() error {
-	if atomic.CompareAndSwapInt32(&l.closeFlag, 0, 1) {
-		return l.Listener.Close()
+	return l.CloseWith(nil)
+}
+
+func (l *listenTrack) CloseWith(err error) error {
+	if !atomic.CompareAndSwapInt32(&l.closeFlag, 0, 1) {
+		return nil
 	}
-	return nil
+	l.errClose.Store(err)
+	return l.Listener.Close()
 }
 
 func (l *listenTrack) IsClosed() bool {
