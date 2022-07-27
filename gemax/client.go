@@ -21,22 +21,41 @@ import (
 type Client struct {
 	MaxResponseSize int64
 	Dial            func(ctx context.Context, host string, cfg *tls.Config) (net.Conn, error)
-	Redirect        func(ctx context.Context, req *urlpkg.URL, prev []RedirectedRequest) error
-	once            sync.Once
+	// CheckRedirect specifies the policy for handling redirects.
+	// If CheckRedirect is not nil, the client calls it before
+	// following an Gemini redirect. The arguments req and via are
+	// the upcoming request and the requests made already, oldest
+	// first. If CheckRedirect returns an error, the Client's Fetch
+	// method returns both the previous Response (with its Body
+	// closed) and CheckRedirect's error.
+	// instead of issuing the Request req.
+	// As a special case, if CheckRedirect returns ErrUseLastResponse,
+	// then the most recent response is returned with its body
+	// unclosed, along with a nil error.
+	//
+	// If CheckRedirect is nil, the Client uses its default policy,
+	// which is to stop after 10 consecutive requests.
+	CheckRedirect func(ctx context.Context, verification *urlpkg.URL, via []RedirectedRequest) error
+	once          sync.Once
 }
 
-var ErrTooManyRedirects = errors.New("too many redirects")
+var (
+	// ErrTooManyRedirects means that server tried through too many adresses.
+	// Default limit is 10.
+	// User implementations of CheckRedirect should use this error then limiting number of redirects.
+	ErrTooManyRedirects = errors.New("too many redirects")
+)
 
-func (client *Client) checkRedirect(ctx context.Context, req *urlpkg.URL, prev []RedirectedRequest) error {
-	if client.Redirect != nil {
-		return client.Redirect(ctx, req, prev)
+func (client *Client) checkRedirect(ctx context.Context, req *urlpkg.URL, via []RedirectedRequest) error {
+	if client.CheckRedirect != nil {
+		return client.CheckRedirect(ctx, req, via)
 	}
-	return defaultRedirect(ctx, req, prev)
+	return defaultRedirect(ctx, req, via)
 }
 
-func defaultRedirect(_ context.Context, _ *urlpkg.URL, prev []RedirectedRequest) error {
+func defaultRedirect(_ context.Context, _ *urlpkg.URL, via []RedirectedRequest) error {
 	const max = 10
-	if len(prev) < max {
+	if len(via) < max {
 		return nil
 	}
 	return ErrTooManyRedirects
