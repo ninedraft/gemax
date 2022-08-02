@@ -61,6 +61,8 @@ func defaultRedirect(_ context.Context, _ *urlpkg.URL, via []RedirectedRequest) 
 	return ErrTooManyRedirects
 }
 
+// RedirectedRequest  contains executed gemini request data
+// and corresponding response with closed body.
 type RedirectedRequest struct {
 	Req      *urlpkg.URL
 	Response *Response
@@ -71,6 +73,7 @@ const readerBufSize = 16 << 10
 // Fetch gemini resource.
 func (client *Client) Fetch(ctx context.Context, url string) (*Response, error) {
 	client.init()
+	//nolint:prealloc // unable to preallocate, we don't know number of redirects
 	var redirects []RedirectedRequest
 	for {
 		var u, errParseURL = urlpkg.Parse(url)
@@ -87,7 +90,7 @@ func (client *Client) Fetch(ctx context.Context, url string) (*Response, error) 
 		if !isRedirect(resp.Status) {
 			return resp, nil
 		}
-		resp.Close()
+		_ = resp.Close()
 		redirects = append(redirects, RedirectedRequest{
 			Req:      u,
 			Response: resp,
