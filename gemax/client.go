@@ -3,6 +3,7 @@ package gemax
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -20,7 +21,51 @@ import (
 type Client struct {
 	MaxResponseSize int64
 	Dial            func(ctx context.Context, host string, cfg *tls.Config) (net.Conn, error)
-	once            sync.Once
+	// CheckRedirect specifies the policy for handling redirects.
+	// If CheckRedirect is not nil, the client calls it before
+	// following an Gemini redirect. The arguments req and via are
+	// the upcoming request and the requests made already, oldest
+	// first. If CheckRedirect returns an error, the Client's Fetch
+	// method returns both the previous Response (with its Body
+	// closed) and CheckRedirect's error.
+	// instead of issuing the Request req.
+	// As a special case, if CheckRedirect returns ErrUseLastResponse,
+	// then the most recent response is returned with its body
+	// unclosed, along with a nil error.
+	//
+	// If CheckRedirect is nil, the Client uses its default policy,
+	// which is to stop after 10 consecutive requests.
+	CheckRedirect func(ctx context.Context, verification *urlpkg.URL, via []RedirectedRequest) error
+	once          sync.Once
+}
+
+var (
+	// ErrTooManyRedirects means that server tried through too many adresses.
+	// Default limit is 10.
+	// User implementations of CheckRedirect should use this error then limiting number of redirects.
+	ErrTooManyRedirects = errors.New("too many redirects")
+)
+
+func (client *Client) checkRedirect(ctx context.Context, req *urlpkg.URL, via []RedirectedRequest) error {
+	if client.CheckRedirect != nil {
+		return client.CheckRedirect(ctx, req, via)
+	}
+	return defaultRedirect(ctx, req, via)
+}
+
+func defaultRedirect(_ context.Context, _ *urlpkg.URL, via []RedirectedRequest) error {
+	const max = 10
+	if len(via) < max {
+		return nil
+	}
+	return ErrTooManyRedirects
+}
+
+// RedirectedRequest  contains executed gemini request data
+// and corresponding response with closed body.
+type RedirectedRequest struct {
+	Req      *urlpkg.URL
+	Response *Response
 }
 
 const readerBufSize = 16 << 10
@@ -28,11 +73,37 @@ const readerBufSize = 16 << 10
 // Fetch gemini resource.
 func (client *Client) Fetch(ctx context.Context, url string) (*Response, error) {
 	client.init()
-	var u, errParseURL = urlpkg.Parse(url)
-	if errParseURL != nil {
-		return nil, fmt.Errorf("parsing URL: %w", errParseURL)
+	//nolint:prealloc // unable to preallocate, we don't know number of redirects
+	var redirects []RedirectedRequest
+	for {
+		var u, errParseURL = urlpkg.Parse(url)
+		if errParseURL != nil {
+			return nil, fmt.Errorf("parsing URL: %w", errParseURL)
+		}
+		if err := client.checkRedirect(ctx, u, redirects); err != nil {
+			return nil, fmt.Errorf("redirect: %w", err)
+		}
+		resp, errFetch := client.fetch(ctx, url, u)
+		if errFetch != nil {
+			return resp, errFetch
+		}
+		if !isRedirect(resp.Status) {
+			return resp, nil
+		}
+		_ = resp.Close()
+		redirects = append(redirects, RedirectedRequest{
+			Req:      u,
+			Response: resp,
+		})
+		url = resp.Meta
 	}
+}
 
+func isRedirect(code status.Code) bool {
+	return code == status.Redirect || code == status.RedirectPermanent
+}
+
+func (client *Client) fetch(ctx context.Context, origURL string, u *urlpkg.URL) (*Response, error) {
 	var host = u.Host
 	if strings.LastIndexByte(host, ':') < 0 {
 		host += ":1965"
@@ -51,7 +122,7 @@ func (client *Client) Fetch(ctx context.Context, url string) (*Response, error) 
 	}
 	ctxConnDeadline(ctx, conn)
 
-	var _, errWrite = io.WriteString(conn, url+"\r\n")
+	var _, errWrite = io.WriteString(conn, origURL+"\r\n")
 	if errWrite != nil {
 		return nil, fmt.Errorf("sending request: %w", errWrite)
 	}
