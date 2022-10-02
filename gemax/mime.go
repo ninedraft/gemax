@@ -24,11 +24,11 @@ package gemax
 //
 // Valid values for the "lang" parameter are comma-separated lists of one or
 // more language tags as defined in RFC4646.  For example:
-//  * "text/gemini; lang=en" Denotes a text/gemini document written in English
-//  * "text/gemini; lang=fr" Denotes a text/gemini document written in French
-//  * "text/gemini; lang=en,fr" Denotes a text/gemini document written in a mixture of English and French
-//  * "text/gemini; lang=de-CH" Denotes a text/gemini document written in Swiss German
-//  * "text/gemini; lang=sr-Cyrl" Denotes a text/gemini document written in Serbian using the Cyrllic script
-//  * "text/gemini; lang=zh-Hans-CN" Denotes a text/gemini document written in Chinese using
-// 	the Simplified script as used in mainland China
+//   - "text/gemini; lang=en" Denotes a text/gemini document written in English
+//   - "text/gemini; lang=fr" Denotes a text/gemini document written in French
+//   - "text/gemini; lang=en,fr" Denotes a text/gemini document written in a mixture of English and French
+//   - "text/gemini; lang=de-CH" Denotes a text/gemini document written in Swiss German
+//   - "text/gemini; lang=sr-Cyrl" Denotes a text/gemini document written in Serbian using the Cyrllic script
+//   - "text/gemini; lang=zh-Hans-CN" Denotes a text/gemini document written in Chinese using
+//     the Simplified script as used in mainland China
 const MIMEGemtext = "text/gemini"

@@ -97,15 +97,19 @@ func main() {
 }
 
 func writePEM(file, name string, data []byte) error {
+	// #nosec G304 // hardcoded in code
 	f, errCreate := os.Create(file)
 	if errCreate != nil {
 		return fmt.Errorf("creating file: %w", errCreate)
 	}
 	defer func() { _ = f.Close() }()
 
-	pem.Encode(f, &pem.Block{
+	errEncode := pem.Encode(f, &pem.Block{
 		Type:  name,
 		Bytes: data,
 	})
+	if errEncode != nil {
+		return fmt.Errorf("encoding PEM data: %w", errEncode)
+	}
 	return nil
 }

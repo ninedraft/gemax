@@ -17,6 +17,7 @@ func Text(code Code) string {
 }
 
 // Comments copy-pasted from official gemini specification.
+//
 //go:generate stringer -type Code -linecomment -output status_string.go
 const (
 	// Undefined is a default empty status code value.
