@@ -17,9 +17,10 @@ import (
 // This mechanism can be used as redirect on other protocol pages.
 //
 // Examples:
-//		Redirect(rw, req, "gemini://other.server.com/page", status.Redirect)
-//		Redirect(rw, req, "../root/page", status.PermanentRedirect)
-//		Redirect(rw, req, "https://wikipedia.org", status.Success)
+//
+//	Redirect(rw, req, "gemini://other.server.com/page", status.Redirect)
+//	Redirect(rw, req, "../root/page", status.PermanentRedirect)
+//	Redirect(rw, req, "https://wikipedia.org", status.Success)
 func Redirect(rw ResponseWriter, req IncomingRequest, target string, code status.Code) {
 	if code == status.Success {
 		rw.WriteStatus(code, MIMEGemtext)
@@ -67,8 +68,9 @@ func ServeContent(contentType string, content []byte) Handler {
 // Query extracts canonical gemini query values
 // from url query part. Values are sorted in ascending order.
 // Expected values:
-//		?query&key=value => [query]
-//		?a&b=&key=value => [a, b]
+//
+//	?query&key=value => [query]
+//	?a&b=&key=value => [a, b]
 func Query(query urlpkg.Values) []string {
 	var keys = make([]string, 0, len(query))
 	for key, values := range query {
