@@ -17,3 +17,11 @@ MIT
 ## Examples
 
 - Example static blog server [examples/server](examples/server)
+
+## Docs
+https://pkg.go.dev/github.com/ninedraft/gemax/gemax
+
+## Features
+- Gemini http-like server
+- Usable gemini client
+- Server utilities (serve fs.FS, errors, static data, etc.)
