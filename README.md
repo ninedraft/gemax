@@ -4,7 +4,7 @@
 
 # gemax
 
-Gemax is std-inspired [gemini](https://gemini.circumlunar.space/docs/specification.html) server and client implementation with no third party dependencies.
+Gemax is std-inspired [gemini](https://gemini.circumlunar.space/docs/specification.html) server and client implementation with no third party dependencies (go std and /x/ libraries can be used).
 
 ## License
 
