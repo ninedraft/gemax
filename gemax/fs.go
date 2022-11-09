@@ -34,7 +34,7 @@ var _ Handler = new(FileSystem).Serve
 
 // Serve provided file system as gemini catalogs.
 func (fileSystem *FileSystem) Serve(ctx context.Context, rw ResponseWriter, req IncomingRequest) {
-	fileSystem.logf("INFO: %s is requested from %s", req.URL(), req.RemoteAddr())
+	fileSystem.logf("INFO: %s is requested", req.URL())
 
 	var p = path.Join(fileSystem.Prefix, req.URL().Path)
 	p = strings.TrimPrefix(p, "/")
