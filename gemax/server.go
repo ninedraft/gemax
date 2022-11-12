@@ -146,7 +146,7 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 		code = status.BadRequest
 	}
 	if errParseReq != nil {
-		server.logf("WARN: bad request: remote_ip=%s, code=%s", conn.RemoteAddr(), code)
+		server.logf("WARN: bad request: remote_ip=%s, code=%s: %v", conn.RemoteAddr(), code, errParseReq)
 		rw.WriteStatus(code, status.Text(code))
 		return
 	}
