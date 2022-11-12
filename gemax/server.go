@@ -10,7 +10,11 @@ import (
 	"sync"
 
 	"github.com/ninedraft/gemax/gemax/status"
+	"golang.org/x/net/netutil"
 )
+
+// DefaultMaxConnections default number of maximum connections.
+const DefaultMaxConnections = 256
 
 // Handler describes a gemini protocol handler.
 type Handler func(ctx context.Context, rw ResponseWriter, req IncomingRequest)
@@ -24,6 +28,11 @@ type Server struct {
 	Handler     Handler
 	ConnContext func(ctx context.Context, conn net.Conn) context.Context
 	Logf        func(format string, args ...interface{})
+
+	// Maximum number of simultaneous connections served by Server.
+	//	0 - DefaultMaxConnections
+	//	<0 - no limitation
+	MaxConnections int
 
 	mu        sync.RWMutex
 	conns     map[*connTrack]struct{}
@@ -47,10 +56,18 @@ func (server *Server) ListenAndServe(ctx context.Context, tlsCfg *tls.Config) er
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var lc = net.ListenConfig{}
+
 	var tcpListener, errListener = lc.Listen(ctx, "tcp", server.Addr)
 	if errListener != nil {
 		return fmt.Errorf("creating listener: %w", errListener)
 	}
+
+	if n := server.maxConnections(); n >= 0 {
+		var limited = netutil.LimitListener(tcpListener, n)
+		server.addListener(limited)
+		tcpListener = limited
+	}
+
 	var listener = tls.NewListener(tcpListener, tlsCfg)
 	go func() {
 		<-ctx.Done()
@@ -75,6 +92,17 @@ func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 			defer server.removeTrack(track)
 			server.handle(ctx, conn)
 		}()
+	}
+}
+
+func (server *Server) maxConnections() int {
+	switch {
+	case server.MaxConnections > 0:
+		return server.MaxConnections
+	case server.MaxConnections == 0:
+		return DefaultMaxConnections
+	default:
+		return -1
 	}
 }
 
