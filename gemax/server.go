@@ -51,6 +51,9 @@ func (server *Server) init() {
 }
 
 // ListenAndServe starts a TLS gemini server at specified server.
+// It will block until context is canceled.
+// It respects the MaxConnections setting.
+// It will await all running handlers to end.
 func (server *Server) ListenAndServe(ctx context.Context, tlsCfg *tls.Config) error {
 	server.init()
 	ctx, cancel := context.WithCancel(ctx)
@@ -79,16 +82,21 @@ func (server *Server) ListenAndServe(ctx context.Context, tlsCfg *tls.Config) er
 }
 
 // Serve starts server on provided listener. Provided context will be passed to handlers.
+// Serve will await all running handlers to end.
 func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 	server.init()
 	server.addListener(listener)
+	var wg sync.WaitGroup
 	for {
 		var conn, errAccept = listener.Accept()
 		if errAccept != nil {
+			wg.Wait()
 			return fmt.Errorf("gemini server: %w", errAccept)
 		}
 		var track = server.addConn(conn)
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			defer server.removeTrack(track)
 			server.handle(ctx, conn)
 		}()
