@@ -8,6 +8,8 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,6 +54,7 @@ func TestServerBadRequest(test *testing.T) {
 }
 
 func TestServerInvalidHost(test *testing.T) {
+	test.Parallel()
 	var listener, server = setupEchoServer(test)
 	server.Hosts = []string{"example.com"}
 	defer func() { _ = listener.Close() }()
@@ -70,6 +73,7 @@ func TestServerInvalidHost(test *testing.T) {
 }
 
 func TestServerCancelListen(test *testing.T) {
+	test.Parallel()
 	var server = &gemax.Server{
 		Addr: testaddr.Addr(),
 		Logf: test.Logf,
@@ -99,6 +103,7 @@ func TestServerCancelListen(test *testing.T) {
 }
 
 func TestListenAndServe(test *testing.T) {
+	test.Parallel()
 	var server = &gemax.Server{
 		Addr: "localhost:40423",
 		Logf: test.Logf,
@@ -137,6 +142,82 @@ func TestListenAndServe(test *testing.T) {
 	expectResponse(test, resp, "example text")
 	var data, errRead = io.ReadAll(resp)
 	test.Logf("%s / %v", data, errRead)
+}
+
+func TestLimitedListen(test *testing.T) {
+	test.Parallel()
+	var trigger = make(chan struct{})
+	var counter atomic.Int64
+
+	var server = &gemax.Server{
+		Addr:           testaddr.Addr(),
+		Logf:           test.Logf,
+		MaxConnections: 2,
+		Handler: func(_ context.Context, rw gemax.ResponseWriter, _ gemax.IncomingRequest) {
+			counter.Add(1)
+			<-trigger
+			_, _ = io.WriteString(rw, "example text")
+		},
+	}
+	test.Logf("loading test certs")
+	var cert, errCert = tls.LoadX509KeyPair("testdata/cert.pem", "testdata/key.pem")
+	if errCert != nil {
+		test.Fatal(errCert)
+	}
+	var cfg = &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{cert},
+	}
+	var ctx, cancel = context.WithCancel(context.Background())
+	test.Cleanup(cancel)
+	test.Logf("starting test server")
+
+	var wg = sync.WaitGroup{}
+	defer wg.Wait()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		test.Logf("test server: listening on %q", server.Addr)
+		var err = server.ListenAndServe(ctx, cfg)
+		switch {
+		case err == nil, errors.Is(err, net.ErrClosed):
+			return
+		default:
+			test.Errorf("test server: listening: %v", err)
+		}
+	}()
+	time.Sleep(time.Second)
+
+	var client = &gemax.Client{}
+
+	wg.Add(2 * server.MaxConnections)
+	for i := 0; i < 2*server.MaxConnections; i++ {
+		go func() {
+			defer wg.Done()
+			var resp, errFetch = client.Fetch(ctx, "gemini://"+server.Addr)
+			switch {
+			case errFetch == nil:
+				// pass
+			case errors.Is(errFetch, context.Canceled):
+				return
+			default:
+				test.Error("fetching: ", errFetch)
+				return
+			}
+			defer func() { _ = resp.Close() }()
+			expectResponse(test, resp, "example text")
+			var data, errRead = io.ReadAll(resp)
+			test.Logf("%s / %v", data, errRead)
+		}()
+	}
+
+	time.Sleep(time.Second)
+	if counter.Load() > int64(server.MaxConnections) {
+		test.Errorf("number of simultaneous connections must not exceed %d", server.MaxConnections)
+	}
+	cancel()
+	close(trigger)
 }
 
 // emulates michael-lazar/gemini-diagnostics localhost $PORT --checks='URLDotEscape'

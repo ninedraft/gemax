@@ -10,7 +10,11 @@ import (
 	"sync"
 
 	"github.com/ninedraft/gemax/gemax/status"
+	"golang.org/x/net/netutil"
 )
+
+// DefaultMaxConnections default number of maximum connections.
+const DefaultMaxConnections = 256
 
 // Handler describes a gemini protocol handler.
 type Handler func(ctx context.Context, rw ResponseWriter, req IncomingRequest)
@@ -24,6 +28,11 @@ type Server struct {
 	Handler     Handler
 	ConnContext func(ctx context.Context, conn net.Conn) context.Context
 	Logf        func(format string, args ...interface{})
+
+	// Maximum number of simultaneous connections served by Server.
+	//	0 - DefaultMaxConnections
+	//	<0 - no limitation
+	MaxConnections int
 
 	mu        sync.RWMutex
 	conns     map[*connTrack]struct{}
@@ -42,15 +51,26 @@ func (server *Server) init() {
 }
 
 // ListenAndServe starts a TLS gemini server at specified server.
+// It will block until context is canceled.
+// It respects the MaxConnections setting.
+// It will await all running handlers to end.
 func (server *Server) ListenAndServe(ctx context.Context, tlsCfg *tls.Config) error {
 	server.init()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var lc = net.ListenConfig{}
+
 	var tcpListener, errListener = lc.Listen(ctx, "tcp", server.Addr)
 	if errListener != nil {
 		return fmt.Errorf("creating listener: %w", errListener)
 	}
+
+	if n := server.maxConnections(); n >= 0 {
+		var limited = netutil.LimitListener(tcpListener, n)
+		server.addListener(limited)
+		tcpListener = limited
+	}
+
 	var listener = tls.NewListener(tcpListener, tlsCfg)
 	go func() {
 		<-ctx.Done()
@@ -62,19 +82,35 @@ func (server *Server) ListenAndServe(ctx context.Context, tlsCfg *tls.Config) er
 }
 
 // Serve starts server on provided listener. Provided context will be passed to handlers.
+// Serve will await all running handlers to end.
 func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 	server.init()
 	server.addListener(listener)
+	var wg sync.WaitGroup
 	for {
 		var conn, errAccept = listener.Accept()
 		if errAccept != nil {
+			wg.Wait()
 			return fmt.Errorf("gemini server: %w", errAccept)
 		}
 		var track = server.addConn(conn)
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			defer server.removeTrack(track)
 			server.handle(ctx, conn)
 		}()
+	}
+}
+
+func (server *Server) maxConnections() int {
+	switch {
+	case server.MaxConnections > 0:
+		return server.MaxConnections
+	case server.MaxConnections == 0:
+		return DefaultMaxConnections
+	default:
+		return -1
 	}
 }
 
@@ -118,7 +154,7 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 		code = status.BadRequest
 	}
 	if errParseReq != nil {
-		server.logf("WARN: bad request: remote_ip=%s, code=%s", conn.RemoteAddr(), code)
+		server.logf("WARN: bad request: remote_ip=%s, code=%s: %v", conn.RemoteAddr(), code, errParseReq)
 		rw.WriteStatus(code, status.Text(code))
 		return
 	}
