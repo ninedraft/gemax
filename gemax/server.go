@@ -3,7 +3,6 @@ package gemax
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -146,14 +145,8 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 		}
 	}()
 	var req, errParseReq = ParseIncomingRequest(conn, conn.RemoteAddr().String())
-	var code = status.Success
-	switch {
-	case errors.Is(errParseReq, errDotPath):
-		code = status.PermanentFailure
-	case errParseReq != nil:
-		code = status.BadRequest
-	}
 	if errParseReq != nil {
+		const code = status.BadRequest
 		server.logf("WARN: bad request: remote_addr=%s, code=%s: %v", conn.RemoteAddr(), code, errParseReq)
 		rw.WriteStatus(code, status.Text(code))
 		return
@@ -217,7 +210,7 @@ func (server *Server) validHost(u *url.URL) bool {
 
 func (server *Server) buildHosts() {
 	if server.hosts == nil {
-		server.hosts = map[string]struct{}{}
+		server.hosts = make(map[string]struct{}, len(server.Hosts))
 	}
 	for _, host := range server.Hosts {
 		server.hosts[host] = struct{}{}
