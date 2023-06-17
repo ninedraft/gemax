@@ -57,6 +57,10 @@ func ParseIncomingRequest(re io.Reader, remoteAddr string) (IncomingRequest, err
 		return nil, fmt.Errorf("%w: %w", ErrBadRequest, errParse)
 	}
 
+	if parsed.Scheme == "" {
+		return nil, fmt.Errorf("%w: missing scheme", ErrBadRequest)
+	}
+
 	if !isValidPath(parsed.Path) {
 		return nil, fmt.Errorf("%w: %w", ErrBadRequest, errDotPath)
 	}
