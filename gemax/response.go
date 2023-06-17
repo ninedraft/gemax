@@ -87,7 +87,11 @@ var bufioWriterPool = &sync.Pool{
 }
 
 func newBufferedWriter(wr io.WriteCloser) *bufwriter.Writer {
-	var bwr = bufioWriterPool.Get().(*bufwriter.Writer)
+	var bwr, _ = bufioWriterPool.Get().(*bufwriter.Writer)
+	if bwr == nil {
+		bwr = bufwriter.New(nil, writeBufferSize)
+	}
+
 	bwr.Reset(wr)
 	return bwr
 }

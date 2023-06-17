@@ -326,6 +326,7 @@ func runTask(t *testing.T, task func()) {
 	})
 }
 
+//nolint:unparam // it's ok for tests
 func dialAndWrite(t *testing.T, ctx context.Context, dialer *memnet.Listener, format string, args ...any) string {
 	t.Helper()
 

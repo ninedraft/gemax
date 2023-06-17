@@ -77,7 +77,6 @@ func ParseIncomingRequest(re io.Reader, remoteAddr string) (IncomingRequest, err
 }
 
 func isValidPath(path string) bool {
-
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimSuffix(path, "/")
 
