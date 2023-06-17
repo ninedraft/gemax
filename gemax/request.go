@@ -41,9 +41,9 @@ func ParseIncomingRequest(re io.Reader, remoteAddr string) (IncomingRequest, err
 
 	re = io.LimitReader(re, MaxRequestSize)
 
-	line, errLine := io.ReadAll(re)
+	line, errLine := readUntil(re, '\n')
 	if errLine != nil {
-		return nil, fmt.Errorf("%w: %w", ErrBadRequest, errLine)
+		return nil, errLine
 	}
 
 	if !bytes.HasSuffix(line, requestSuffix) {
@@ -73,14 +73,14 @@ func ParseIncomingRequest(re io.Reader, remoteAddr string) (IncomingRequest, err
 }
 
 func isValidPath(path string) bool {
-	if path == "." {
-		return false
-	}
 
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimSuffix(path, "/")
 
-	if path == "" {
+	switch path {
+	case ".", "..":
+		return false
+	case "":
 		return true
 	}
 
@@ -99,4 +99,37 @@ func (req *incomingRequest) URL() *url.URL {
 
 func (req *incomingRequest) RemoteAddr() string {
 	return req.remoteAddr
+}
+
+// - found delimiter -> return data[:delimIndex+1], err
+// - found EOF -> return data, err
+// - found error -> return data, err
+func readUntil(re io.Reader, delim byte) ([]byte, error) {
+	b := make([]byte, 0, MaxRequestSize/4)
+	var errRead error
+	for {
+		if len(b) == cap(b) {
+			// Add more capacity (let append pick how much).
+			b = append(b, 0)[:len(b)]
+		}
+		n, err := re.Read(b[len(b):cap(b)])
+		b = b[:len(b)+n]
+
+		delimIndex := bytes.IndexByte(b, delim)
+		if delimIndex >= 0 {
+			b = b[:delimIndex+1]
+		}
+
+		if errors.Is(err, io.EOF) && delimIndex < 0 {
+			// EOF, but no delimiter found.
+			err = errors.Join(ErrBadRequest, io.ErrUnexpectedEOF)
+		}
+
+		if delimIndex >= 0 || err != nil {
+			errRead = err
+			break
+		}
+	}
+
+	return b, errRead
 }
