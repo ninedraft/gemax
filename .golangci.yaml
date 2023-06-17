@@ -80,6 +80,13 @@ linters-settings:
       # - net/context
     packages-with-error-messages:
       # - context: "context instead"
+    rules:
+      Main:
+        deny:
+          - pkg: golang.org/x/net/context
+            msg: "use context instead"
+          - pkg: github.com/pkg/errors
+            msg: "use errors instead"
 
   dogsled:
     max-blank-identifiers: 2
