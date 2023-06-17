@@ -16,6 +16,8 @@ import (
 	"github.com/ninedraft/gemax/gemax"
 	"github.com/ninedraft/gemax/gemax/internal/testaddr"
 	"github.com/ninedraft/gemax/gemax/status"
+
+	"tailscale.com/net/memnet"
 )
 
 func TestServerSuccess(test *testing.T) {
@@ -31,9 +33,9 @@ func TestServerSuccess(test *testing.T) {
 		}
 	})
 
-	var resp = listener.next(test.Name(), strings.NewReader("gemini://example.com/path"))
+	var resp = dialAndWrite(test, ctx, listener, "gemini://example.com/path\r\n")
 
-	expectResponse(test, resp, "20 text/gemini\r\ngemini://example.com/path")
+	expectResponse(test, strings.NewReader(resp), "20 text/gemini\r\ngemini://example.com/path")
 }
 
 func TestServerBadRequest(test *testing.T) {
@@ -48,9 +50,9 @@ func TestServerBadRequest(test *testing.T) {
 		}
 	})
 
-	var resp = listener.next(test.Name(), strings.NewReader("invalid URL"))
+	var resp = dialAndWrite(test, ctx, listener, "invalid URL\r\n")
 
-	expectResponse(test, resp, "59 "+status.Text(status.BadRequest)+"\r\n")
+	expectResponse(test, strings.NewReader(resp), "59 "+status.Text(status.BadRequest)+"\r\n")
 }
 
 func TestServerInvalidHost(test *testing.T) {
@@ -67,9 +69,9 @@ func TestServerInvalidHost(test *testing.T) {
 		}
 	})
 
-	var resp = listener.next(test.Name(), strings.NewReader("gemini://another.com/path"))
+	var resp = dialAndWrite(test, ctx, listener, "gemini://another.com/path\r\n")
 
-	expectResponse(test, resp, "50 host not found\r\n")
+	expectResponse(test, strings.NewReader(resp), "50 host not found\r\n")
 }
 
 func TestServerCancelListen(test *testing.T) {
@@ -234,9 +236,9 @@ func TestURLDotEscape(test *testing.T) {
 		}
 	})
 
-	var resp = listener.next(test.Name(), strings.NewReader("gemini://example.com/../../\r\n"))
+	var resp = dialAndWrite(test, ctx, listener, "gemini://example.com/./\r\n")
 
-	expectResponse(test, resp, "50 50 PERMANENT FAILURE\r\n")
+	expectResponse(test, strings.NewReader(resp), "50 50 PERMANENT FAILURE\r\n")
 }
 
 // emulates michael-lazar/gemini-diagnostics localhost 9999 --checks='PageNotFound'
@@ -257,15 +259,15 @@ func TestPageNotFound(test *testing.T) {
 			}
 		})
 
-		var resp = listener.next(test.Name(), strings.NewReader("gemini://example.com/notexist\r\n"))
+		var resp = dialAndWrite(test, ctx, listener, "gemini://example.com/notexist\r\n")
 
-		expectResponse(test, resp, "51 gemini://example.com/notexist is not found\r\n")
+		expectResponse(test, strings.NewReader(resp), "51 gemini://example.com/notexist is not found\r\n")
 	})
 
 	test.Run("custom", func(test *testing.T) {
 		test.Log("meta must not interfere with response body")
 		var listener, server = setupServer(test,
-			func(_ context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+			func(_ context.Context, rw gemax.ResponseWriter, _ gemax.IncomingRequest) {
 				rw.WriteStatus(status.NotFound, "page is not found\r\ndotdot")
 			})
 		server.Hosts = []string{"example.com"}
@@ -279,25 +281,25 @@ func TestPageNotFound(test *testing.T) {
 			}
 		})
 
-		var resp = listener.next(test.Name(), strings.NewReader("gemini://example.com/notexist\r\n"))
+		var resp = dialAndWrite(test, ctx, listener, "gemini://example.com/notexist\r\n")
 
-		expectResponse(test, resp, "51 page is not found\tdotdot\r\n")
+		expectResponse(test, strings.NewReader(resp), "51 page is not found\tdotdot\r\n")
 	})
 }
 
-func setupServer(t *testing.T, handler gemax.Handler) (*fakeListener, *gemax.Server) {
+func setupServer(t *testing.T, handler gemax.Handler) (*memnet.Listener, *gemax.Server) {
 	t.Helper()
 	var server = &gemax.Server{
 		Logf:    t.Logf,
 		Handler: handler,
 	}
-	var listener = newListener(t.Name())
+	var listener = memnet.Listen(t.Name())
 	return listener, server
 }
 
-func setupEchoServer(t *testing.T) (*fakeListener, *gemax.Server) {
+func setupEchoServer(t *testing.T) (*memnet.Listener, *gemax.Server) {
 	t.Helper()
-	return setupServer(t, func(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+	return setupServer(t, func(_ context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
 		_, _ = rw.Write([]byte(req.URL().String()))
 	})
 }
@@ -313,79 +315,6 @@ func expectResponse(t *testing.T, got io.Reader, want string) {
 	}
 }
 
-type fakeListener struct {
-	conns chan *fakeConn
-	addr  string
-}
-
-func newListener(addr string) *fakeListener {
-	return &fakeListener{
-		addr:  addr,
-		conns: make(chan *fakeConn),
-	}
-}
-
-func (listener *fakeListener) next(addr string, data io.Reader) io.Reader {
-	var pipe = newPipe()
-	listener.conns <- &fakeConn{
-		addr:        addr,
-		localAddr:   addr,
-		Reader:      data,
-		WriteCloser: pipe,
-	}
-	return pipe
-}
-
-func (listener *fakeListener) Close() error {
-	close(listener.conns)
-	return nil
-}
-
-func (listener *fakeListener) Accept() (net.Conn, error) {
-	var conn, ok = <-listener.conns
-	if !ok {
-		return nil, fmt.Errorf("listener closed: %w", io.EOF)
-	}
-	return conn, nil
-}
-
-func (listener *fakeListener) Addr() net.Addr {
-	return fakeAddr(listener.addr)
-}
-
-type fakeConn struct {
-	addr      string
-	localAddr string
-	io.Reader
-	io.WriteCloser
-}
-
-func (conn *fakeConn) RemoteAddr() net.Addr {
-	return fakeAddr(conn.addr)
-}
-
-func (conn *fakeConn) LocalAddr() net.Addr {
-	return fakeAddr(conn.localAddr)
-}
-
-func (conn *fakeConn) SetDeadline(t time.Time) error {
-	return nil
-}
-
-func (conn *fakeConn) SetReadDeadline(t time.Time) error {
-	return nil
-}
-
-func (conn *fakeConn) SetWriteDeadline(t time.Time) error {
-	return nil
-}
-
-type fakeAddr string
-
-func (fakeAddr) Network() string { return "fake network" }
-
-func (addr fakeAddr) String() string { return string(addr) }
-
 func runTask(t *testing.T, task func()) {
 	var done = make(chan struct{})
 	go func() {
@@ -397,42 +326,30 @@ func runTask(t *testing.T, task func()) {
 	})
 }
 
-type chPipe struct {
-	closed bool
-	ch     chan byte
-}
+func dialAndWrite(t *testing.T, ctx context.Context, dialer *memnet.Listener, format string, args ...any) string {
+	t.Helper()
 
-func newPipe() *chPipe {
-	return &chPipe{
-		ch: make(chan byte),
+	t.Log("dialing in-memory network")
+	conn, errDial := dialer.Dial(ctx, "tcp", t.Name())
+	if errDial != nil {
+		panic("dialin in-memory network: " + errDial.Error())
 	}
-}
 
-func (p *chPipe) Read(dst []byte) (int, error) {
-	for i := range dst {
-		var b, ok = <-p.ch
-		if !ok {
-			return i, io.EOF
-		}
-		dst[i] = b
+	defer func() { _ = conn.Close() }()
+
+	t.Log("writing to in-memory network")
+	_, errWrite := fmt.Fprintf(conn, format, args...)
+	if errWrite != nil {
+		panic("writing to in-memory network: " + errWrite.Error())
 	}
-	return len(dst), nil
-}
 
-func (p *chPipe) Write(data []byte) (int, error) {
-	for _, b := range data {
-		p.ch <- b
+	var resp = &strings.Builder{}
+
+	t.Log("reading from in-memory network")
+	_, errRead := io.Copy(resp, conn)
+	if errRead != nil {
+		panic("reading from in-memory network: " + errRead.Error())
 	}
-	return len(data), nil
-}
 
-var errAlreadyClosed = errors.New("already closed")
-
-func (p *chPipe) Close() error {
-	if p.closed {
-		return errAlreadyClosed
-	}
-	close(p.ch)
-	p.closed = true
-	return nil
+	return resp.String()
 }
