@@ -14,7 +14,9 @@ type (
 		*buf
 	}
 
-	buf    = bufio.Reader
+	//nolint:unused // used as embedded field
+	buf = bufio.Reader
+	//nolint:unused // used as embedded field
 	closer = io.Closer
 )
 

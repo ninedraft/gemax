@@ -31,6 +31,7 @@ func New(w io.WriteCloser, bufSize int) *Writer {
 	}
 }
 
+//nolint:unused // used as embedded field
 type writer = bufio.Writer
 
 // Reset buffer and sets new write target.

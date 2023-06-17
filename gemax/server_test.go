@@ -238,7 +238,7 @@ func TestURLDotEscape(test *testing.T) {
 
 	var resp = dialAndWrite(test, ctx, listener, "gemini://example.com/./\r\n")
 
-	expectResponse(test, strings.NewReader(resp), "50 50 PERMANENT FAILURE\r\n")
+	expectResponse(test, strings.NewReader(resp), "59 59 BAD REQUEST\r\n")
 }
 
 // emulates michael-lazar/gemini-diagnostics localhost 9999 --checks='PageNotFound'
@@ -326,6 +326,7 @@ func runTask(t *testing.T, task func()) {
 	})
 }
 
+//nolint:unparam // it's ok for tests
 func dialAndWrite(t *testing.T, ctx context.Context, dialer *memnet.Listener, format string, args ...any) string {
 	t.Helper()
 
