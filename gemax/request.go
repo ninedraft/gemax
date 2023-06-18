@@ -23,6 +23,7 @@ const MaxRequestSize = int64(1024 + len("\r\n"))
 type IncomingRequest interface {
 	URL() *url.URL
 	RemoteAddr() string
+	Certificates() []*x509.Certificate
 }
 
 var (
@@ -102,6 +103,10 @@ func (req *incomingRequest) URL() *url.URL {
 
 func (req *incomingRequest) RemoteAddr() string {
 	return req.remoteAddr
+}
+
+func (req *incomingRequest) Certificates() []*x509.Certificate {
+	return req.certs
 }
 
 // - found delimiter -> return data[:delimIndex+1], err
