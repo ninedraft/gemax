@@ -3,6 +3,7 @@ package gemax_test
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -285,6 +286,135 @@ func TestPageNotFound(test *testing.T) {
 
 		expectResponse(test, strings.NewReader(resp), "51 page is not found\tdotdot\r\n")
 	})
+}
+
+func TestServer_Identity(test *testing.T) {
+	test.Parallel()
+	test.Log(
+		"Check that server fetches client certificates and passes them to the handler",
+	)
+
+	called := make(chan []*x509.Certificate)
+	server := gemax.Server{
+		Logf:  test.Logf,
+		Addr:  testaddr.Addr(),
+		Hosts: []string{"example.com"},
+		Handler: func(_ context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+			rw.WriteStatus(status.Success, "example text")
+			called <- req.Certificates()
+		},
+	}
+
+	ctx := context.Background()
+
+	go func() {
+		_ = server.ListenAndServe(ctx, &tls.Config{
+			//nolint:gosec // G402 - it's ok to skip verification for gemini server
+			InsecureSkipVerify: true,
+			Certificates:       []tls.Certificate{serverCert},
+			ClientAuth:         tls.RequireAnyClientCert,
+		})
+	}()
+
+	cfg := &tls.Config{
+		ServerName: "example.com",
+		//nolint:gosec // G402 - it's ok to skip verification for gemini server
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS13,
+		Certificates:       []tls.Certificate{clientCert},
+		VerifyConnection:   func(tls.ConnectionState) error { return nil },
+		VerifyPeerCertificate: func([][]byte, [][]*x509.Certificate) error {
+			return nil
+		},
+	}
+
+	var conn net.Conn
+
+	// wait for server to start
+	for i := 0; true; i++ {
+		c, errDial := tls.Dial("tcp", server.Addr, cfg)
+
+		switch {
+		case i >= 20 && errDial != nil:
+			test.Fatal("server is not started: %w", errDial)
+		case errDial != nil:
+			test.Log("server is not started yet, retrying...")
+			continue
+		}
+		conn = c
+		break
+	}
+
+	_, _ = fmt.Fprintf(conn, "gemini://example.com/\r\n")
+	_ = conn.Close()
+
+	gotCerts := <-called
+	if len(gotCerts) != 1 {
+		test.Fatalf("got %d certificates, want 1", len(gotCerts))
+	}
+	assertEq(test, gotCerts[0].Subject.CommonName, "client", "certificate CN")
+}
+
+func TestServer_Identity_Error(test *testing.T) {
+	test.Parallel()
+	test.Log(
+		"Check that server handles bad handshake",
+	)
+
+	server := gemax.Server{
+		Logf:  test.Logf,
+		Addr:  testaddr.Addr(),
+		Hosts: []string{"example.com"},
+		Handler: func(context.Context, gemax.ResponseWriter, gemax.IncomingRequest) {
+			test.Errorf("handler must not be called")
+		},
+	}
+
+	ctx := context.Background()
+	errTest := errors.New("test error")
+
+	go func() {
+		_ = server.ListenAndServe(ctx, &tls.Config{
+			//nolint:gosec // G402 - it's ok to skip verification for gemini server
+			InsecureSkipVerify: true,
+			Certificates:       []tls.Certificate{serverCert},
+			ClientAuth:         tls.RequireAnyClientCert,
+			VerifyPeerCertificate: func([][]byte, [][]*x509.Certificate) error {
+				return errTest
+			},
+		})
+	}()
+
+	cfg := &tls.Config{
+		ServerName: "example.com",
+		//nolint:gosec // G402 - it's ok to skip verification for gemini server
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS13,
+		Certificates:       []tls.Certificate{clientCert},
+		VerifyConnection:   func(tls.ConnectionState) error { return nil },
+		VerifyPeerCertificate: func([][]byte, [][]*x509.Certificate) error {
+			return nil
+		},
+	}
+
+	var conn net.Conn
+
+	// wait for server to start
+	for i := 0; true; i++ {
+		c, errDial := tls.Dial("tcp", server.Addr, cfg)
+
+		switch {
+		case i >= 20 && errDial != nil:
+			test.Fatal("server is not started: %w", errDial)
+		case errDial != nil:
+			test.Log("server is not started yet, retrying...")
+			continue
+		}
+		conn = c
+		_, _ = fmt.Fprintf(conn, "gemini://example.com/\r\n")
+		_ = conn.Close()
+		break
+	}
 }
 
 func setupServer(t *testing.T, handler gemax.Handler) (*memnet.Listener, *gemax.Server) {

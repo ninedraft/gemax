@@ -97,6 +97,12 @@ func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 		go func() {
 			defer wg.Done()
 			defer server.removeTrack(track)
+
+			if err := handshake(ctx, conn); err != nil {
+				server.logf("WARN: handshake with %q failed: %v", conn.RemoteAddr(), err)
+				return
+			}
+
 			server.handle(ctx, conn)
 		}()
 	}
@@ -215,4 +221,12 @@ func (server *Server) buildHosts() {
 	for _, host := range server.Hosts {
 		server.hosts[host] = struct{}{}
 	}
+}
+
+func handshake(ctx context.Context, conn net.Conn) error {
+	if c, ok := conn.(*tls.Conn); ok {
+		return c.HandshakeContext(ctx)
+	}
+
+	return nil
 }

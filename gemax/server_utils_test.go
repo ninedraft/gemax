@@ -3,6 +3,7 @@ package gemax_test
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	urlpkg "net/url"
 	"reflect"
 	"strings"
@@ -69,6 +70,10 @@ func (req *request) URL() *urlpkg.URL {
 
 func (req *request) RemoteAddr() string {
 	return req.remoteAddr
+}
+
+func (req *request) Certificates() []*x509.Certificate {
+	return nil
 }
 
 type responseRecorder struct {

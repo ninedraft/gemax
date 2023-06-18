@@ -3,6 +3,7 @@ package gemax_test
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"net/url"
 	"testing"
 	"testing/fstest"
@@ -43,6 +44,10 @@ type incomingRequest struct {
 func (req *incomingRequest) RemoteAddr() string { return req.remoteAddr }
 
 func (req *incomingRequest) URL() *url.URL { return req.url }
+
+func (req *incomingRequest) Certificates() []*x509.Certificate {
+	return nil
+}
 
 type responseWriter struct {
 	status status.Code
