@@ -23,6 +23,7 @@ const MaxRequestSize = int64(1024 + len("\r\n"))
 type IncomingRequest interface {
 	URL() *url.URL
 	RemoteAddr() string
+	// Certificates returns the TLS certificates provided by the client.
 	Certificates() []*x509.Certificate
 }
 
