@@ -289,6 +289,11 @@ func TestPageNotFound(test *testing.T) {
 }
 
 func TestServer_Identity(test *testing.T) {
+	test.Parallel()
+	test.Log(
+		"Check that server fetches client certificates and passes them to the handler",
+	)
+
 	called := make(chan []*x509.Certificate)
 	server := gemax.Server{
 		Logf:  test.Logf,
@@ -311,7 +316,7 @@ func TestServer_Identity(test *testing.T) {
 		})
 	}()
 
-	conn, errDial := tls.Dial("tcp", server.Addr, &tls.Config{
+	cfg := &tls.Config{
 		ServerName: "example.com",
 		//nolint:gosec // G402 - it's ok to skip verification for gemini server
 		InsecureSkipVerify: true,
@@ -321,13 +326,27 @@ func TestServer_Identity(test *testing.T) {
 		VerifyPeerCertificate: func([][]byte, [][]*x509.Certificate) error {
 			return nil
 		},
-	})
-	if errDial != nil {
-		test.Fatal("dialing: ", errDial)
 	}
-	defer func() { _ = conn.Close() }()
+
+	var conn net.Conn
+
+	// wait for server to start
+	for i := 0; true; i++ {
+		c, errDial := tls.Dial("tcp", server.Addr, cfg)
+
+		switch {
+		case i >= 20 && errDial != nil:
+			test.Fatal("server is not started: %w", errDial)
+		case errDial != nil:
+			test.Log("server is not started yet, retrying...")
+			continue
+		}
+		conn = c
+		break
+	}
 
 	_, _ = fmt.Fprintf(conn, "gemini://example.com/\r\n")
+	_ = conn.Close()
 
 	gotCerts := <-called
 	if len(gotCerts) != 1 {
