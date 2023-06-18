@@ -97,9 +97,6 @@ func TestRequest_Certificates(test *testing.T) {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 
-	clientCerts := x509.NewCertPool()
-	clientCerts.AppendCertsFromPEM(clientCert.Certificate[0])
-
 	a, b := memnet.NewConn(test.Name(), 10<<20)
 	defer func() {
 		_ = a.Close()
@@ -134,12 +131,8 @@ func TestRequest_Certificates(test *testing.T) {
 		//nolint:gosec // G402 - it's ok to skip verification for gemini server
 		InsecureSkipVerify: true,
 		MinVersion:         tls.VersionTLS13,
-		RootCAs:            clientCerts,
 		Certificates:       []tls.Certificate{clientCert},
-		GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return &clientCert, nil
-		},
-		VerifyConnection: func(tls.ConnectionState) error { return nil },
+		VerifyConnection:   func(tls.ConnectionState) error { return nil },
 		VerifyPeerCertificate: func([][]byte, [][]*x509.Certificate) error {
 			return nil
 		},
