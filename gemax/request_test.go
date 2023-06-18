@@ -107,14 +107,15 @@ func TestRequest_Certificates(test *testing.T) {
 	}()
 
 	deadline := time.Now().Add(5 * time.Second)
-	a.SetDeadline(deadline)
-	b.SetDeadline(deadline)
+	_ = a.SetDeadline(deadline)
+	_ = b.SetDeadline(deadline)
 
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
 	test.Log("setting up server")
 	server := tls.Server(a, &tls.Config{
+		//nolint:gosec // G402 - it's ok to skip verification for gemini server
 		InsecureSkipVerify: true,
 		MinVersion:         tls.VersionTLS13,
 		Certificates:       []tls.Certificate{serverCert},
@@ -126,10 +127,11 @@ func TestRequest_Certificates(test *testing.T) {
 			return nil
 		},
 	})
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	test.Log("setting up client")
 	client := tls.Client(b, &tls.Config{
+		//nolint:gosec // G402 - it's ok to skip verification for gemini server
 		InsecureSkipVerify: true,
 		MinVersion:         tls.VersionTLS13,
 		RootCAs:            clientCerts,
@@ -145,7 +147,7 @@ func TestRequest_Certificates(test *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 		defer wg.Done()
 
 		test.Log("sending request")
@@ -186,7 +188,7 @@ func assertEq[E comparable](t *testing.T, got, want E, format string, args ...an
 	}
 }
 
-func testCert(organisation string) tls.Certificate {
+func testCert(organization string) tls.Certificate {
 	privateKey, errGenerate := rsa.GenerateKey(rand.Reader, 2048)
 	if errGenerate != nil {
 		panic("failed to generate private key: " + errGenerate.Error())
@@ -195,8 +197,8 @@ func testCert(organisation string) tls.Certificate {
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(int64(time.Now().Year())),
 		Subject: pkix.Name{
-			CommonName:   organisation,
-			Organization: []string{organisation},
+			CommonName:   organization,
+			Organization: []string{organization},
 		},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour), // Valid for 1 year
