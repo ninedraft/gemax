@@ -16,7 +16,7 @@ import (
 
 	"github.com/ninedraft/gemax/gemax"
 
-	"tailscale.com/net/memnet"
+	"github.com/ninedraft/gemax/vend/tailscale.com/net/memnet"
 )
 
 var (

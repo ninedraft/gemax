@@ -18,7 +18,7 @@ import (
 	"github.com/ninedraft/gemax/gemax/internal/testaddr"
 	"github.com/ninedraft/gemax/gemax/status"
 
-	"tailscale.com/net/memnet"
+	"github.com/ninedraft/gemax/vend/tailscale.com/net/memnet"
 )
 
 func TestServerSuccess(test *testing.T) {
