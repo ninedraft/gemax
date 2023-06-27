@@ -4,7 +4,8 @@ run:
   issues-exit-code: 1 # exit code when issue was found
   build-tags: [] # list of build tags
   tests: true # include tests
-  skip-dirs: [] # dirs to skip
+  skip-dirs: # dirs to skip
+    - vend
   skip-dirs-use-default: true # skip vendor, third_party, test_data
   modules-download-mode: readonly # readonly|release|vendor
 
