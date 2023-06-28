@@ -8,6 +8,14 @@ import (
 	"github.com/ninedraft/gemax/gemax"
 )
 
+// IncomingRequest is an interface for gemax.IncomingRequest with additional
+// method Param, that returns value of parametrized path part.
+// If path part is not parametrized or requested parameter is not exist, Param returns false.
+//
+// Examples:
+//
+//	/hello/:name -> /hello/world -> Param("name") -> "world", true
+//	/hello/:name -> /hello -> Param("boop") -> "", false
 type IncomingRequest interface {
 	gemax.IncomingRequest
 	Param(name string) (string, bool)
@@ -27,6 +35,9 @@ func (req *incomingRequest) Param(name string) (string, bool) {
 	return val, ok
 }
 
+// Router is a simple parametrized router for gemax.
+// Routes are registered with HandleParams and Handle methods.
+// Routes has format similar to http.ServeMux: "/path/:param" or "/path".
 type Router struct {
 	root    *node
 	handers []handler
@@ -38,14 +49,17 @@ type handler struct {
 	fn         func(context.Context, gemax.ResponseWriter, IncomingRequest)
 }
 
-func NewRouter() *Router {
+// New returns new instance of Router.
+func New() *Router {
 	return &Router{
 		root: newNode(-1),
 	}
 }
 
+// HandleParamsFn describes function that handles parametrized incoming request.
 type HandleParamsFn = func(ctx context.Context, rw gemax.ResponseWriter, req IncomingRequest)
 
+// HandleParams registers new handler for parametrized path.
 func (router *Router) HandleParams(pattern string, handle HandleParamsFn) {
 	i := len(router.handers)
 	router.handers = append(router.handers, handler{
@@ -56,6 +70,7 @@ func (router *Router) HandleParams(pattern string, handle HandleParamsFn) {
 	router.add(pattern, i)
 }
 
+// Handle registers new handler for path.
 func (router *Router) Handle(pattern string, handle gemax.Handler) {
 	h := func(ctx context.Context, rw gemax.ResponseWriter, req IncomingRequest) {
 		handle(ctx, rw, req)
@@ -64,12 +79,15 @@ func (router *Router) Handle(pattern string, handle gemax.Handler) {
 	router.HandleParams(pattern, h)
 }
 
-func (router *Router) Serve(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) bool {
+var _ gemax.Handler = new(Router).Serve
+
+// Serve method handles incoming request. It can be used as gemax.Handler.
+func (router *Router) Serve(ctx context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
 	params := map[string]string{}
 	index := router.get(req.URL().Path, params)
 
 	if index < 0 {
-		return false
+		return
 	}
 
 	handler := router.handers[index]
@@ -78,8 +96,6 @@ func (router *Router) Serve(ctx context.Context, rw gemax.ResponseWriter, req ge
 		IncomingRequest: req,
 		params:          params,
 	})
-
-	return true
 }
 
 type node struct {

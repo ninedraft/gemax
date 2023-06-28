@@ -14,7 +14,7 @@ import (
 func TestRouter_HandleParams(test *testing.T) {
 	test.Parallel()
 
-	r := router.NewRouter()
+	r := router.New()
 	ctx := context.Background()
 
 	r.HandleParams("/hello/world",
