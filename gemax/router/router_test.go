@@ -58,10 +58,9 @@ func TestRouter_HandleParams(test *testing.T) {
 		response := &tester.ResponseWriter{}
 		req := tester.NewIncomingRequest("/hello/world", "")
 
-		serverd := r.Serve(ctx, response, req)
+		r.Serve(ctx, response, req)
 
 		assertEqual(t, response.Body.String(), "/hello/world")
-		assertEqual(t, serverd, true)
 	})
 
 	test.Run("match-with-params", func(t *testing.T) {
@@ -70,10 +69,9 @@ func TestRouter_HandleParams(test *testing.T) {
 		response := &tester.ResponseWriter{}
 		req := tester.NewIncomingRequest("/hello/world", "")
 
-		serverd := r.Serve(ctx, response, req)
+		r.Serve(ctx, response, req)
 
 		assertEqual(t, "/hello/world", response.Body.String())
-		assertEqual(t, serverd, true)
 	})
 
 	test.Run("match-short", func(t *testing.T) {
@@ -82,10 +80,9 @@ func TestRouter_HandleParams(test *testing.T) {
 		response := &tester.ResponseWriter{}
 		req := tester.NewIncomingRequest("/hello/merlin", "")
 
-		serverd := r.Serve(ctx, response, req)
+		r.Serve(ctx, response, req)
 
 		assertEqual(t, "/hello/merlin", response.Body.String())
-		assertEqual(t, serverd, true)
 	})
 
 	test.Run("no-match", func(t *testing.T) {
@@ -94,10 +91,9 @@ func TestRouter_HandleParams(test *testing.T) {
 		response := &tester.ResponseWriter{}
 		req := tester.NewIncomingRequest("/fasan", "")
 
-		served := r.Serve(ctx, response, req)
+		r.Serve(ctx, response, req)
 
 		assertEqual(t, response.Body.String(), "")
-		assertEqual(t, false, served)
 	})
 }
 
