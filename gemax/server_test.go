@@ -128,10 +128,7 @@ func TestListenAndServe(test *testing.T) {
 	test.Logf("starting test server")
 	go func() {
 		test.Logf("test server: listening on %q", server.Addr)
-		var err = server.ListenAndServe(ctx, cfg)
-		if err != nil {
-			test.Logf("test server: Serve: %v", err)
-		}
+		_ = server.ListenAndServe(ctx, cfg)
 	}()
 	time.Sleep(time.Second)
 	var client = &gemax.Client{}
