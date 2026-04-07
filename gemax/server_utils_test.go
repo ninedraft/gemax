@@ -58,6 +58,25 @@ func TestQuery(test *testing.T) {
 	t("foo=bar", []string{})
 }
 
+func TestRedirect(test *testing.T) {
+	test.Run("relative target preserves redirect code", func(test *testing.T) {
+		var rw = &responseRecorder{}
+		var req = &request{
+			remoteAddr: test.Name(),
+			url:        "gemini://example.com/a",
+		}
+
+		gemax.Redirect(rw, req, "b", status.RedirectPermanent)
+
+		if rw.status != status.RedirectPermanent {
+			test.Fatalf("expected %s, got %s", status.RedirectPermanent, rw.status)
+		}
+		if rw.meta != "gemini://example.com/a/b" {
+			test.Fatalf("expected %q, got %q", "gemini://example.com/a/b", rw.meta)
+		}
+	})
+}
+
 type request struct {
 	remoteAddr string
 	url        string
