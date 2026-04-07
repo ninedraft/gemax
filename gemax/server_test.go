@@ -379,6 +379,8 @@ func TestServer_Identity_Error(test *testing.T) {
 			InsecureSkipVerify: true,
 			Certificates:       []tls.Certificate{serverCert},
 			ClientAuth:         tls.RequireAnyClientCert,
+			// Disable session resumption since custom peer verification is used.
+			SessionTicketsDisabled: true,
 			VerifyPeerCertificate: func([][]byte, [][]*x509.Certificate) error {
 				return errTest
 			},

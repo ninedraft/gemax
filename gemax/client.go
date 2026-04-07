@@ -54,8 +54,8 @@ func (client *Client) checkRedirect(ctx context.Context, req *urlpkg.URL, via []
 }
 
 func defaultRedirect(_ context.Context, _ *urlpkg.URL, via []RedirectedRequest) error {
-	const max = 10
-	if len(via) < max {
+	const redirectLimit = 10
+	if len(via) < redirectLimit {
 		return nil
 	}
 	return ErrTooManyRedirects
