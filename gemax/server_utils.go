@@ -43,7 +43,7 @@ func Redirect(rw ResponseWriter, req IncomingRequest, target string, code status
 	if oldpath == "" {
 		oldpath = "/"
 	}
-	rw.WriteStatus(status.Redirect, (&urlpkg.URL{
+	rw.WriteStatus(code, (&urlpkg.URL{
 		Scheme:   req.URL().Scheme,
 		User:     req.URL().User,
 		Host:     req.URL().Host,
