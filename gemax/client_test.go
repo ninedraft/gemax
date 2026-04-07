@@ -2,10 +2,14 @@ package gemax_test
 
 import (
 	"context"
+	"crypto/tls"
 	"embed"
 	"errors"
 	"io"
+	"net"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ninedraft/gemax/gemax"
 	"github.com/ninedraft/gemax/gemax/internal/tester"
@@ -82,4 +86,89 @@ func TestClient_InfiniteRedirect(test *testing.T) {
 	default:
 		test.Fatalf("an error is expected, got nil")
 	}
+}
+
+func TestClient_Fetch_ClosesConnOnWriteError(test *testing.T) {
+	test.Parallel()
+	var errWrite = errors.New("write failed")
+	var conn = &recordingConn{
+		writeErr: errWrite,
+		reader:   strings.NewReader(""),
+	}
+	var client = &gemax.Client{
+		Dial: func(context.Context, string, *tls.Config) (net.Conn, error) {
+			return conn, nil
+		},
+	}
+	var _, errFetch = client.Fetch(context.Background(), "gemini://example.com")
+	if !errors.Is(errFetch, errWrite) {
+		test.Fatalf("unexpected fetch error: %v", errFetch)
+	}
+	if conn.closeCalls != 1 {
+		test.Fatalf("connection must be closed once, got %d", conn.closeCalls)
+	}
+}
+
+func TestClient_Fetch_ClosesConnOnHeaderParseError(test *testing.T) {
+	test.Parallel()
+	var conn = &recordingConn{
+		reader: strings.NewReader("not-a-valid-header\r\n"),
+	}
+	var client = &gemax.Client{
+		Dial: func(context.Context, string, *tls.Config) (net.Conn, error) {
+			return conn, nil
+		},
+	}
+	var _, errFetch = client.Fetch(context.Background(), "gemini://example.com")
+	if !errors.Is(errFetch, gemax.ErrInvalidResponse) {
+		test.Fatalf("unexpected fetch error: %v", errFetch)
+	}
+	if conn.closeCalls != 1 {
+		test.Fatalf("connection must be closed once, got %d", conn.closeCalls)
+	}
+}
+
+type recordingConn struct {
+	reader     io.Reader
+	writeErr   error
+	closeCalls int
+}
+
+func (conn *recordingConn) Read(data []byte) (int, error) {
+	if conn.reader == nil {
+		return 0, io.EOF
+	}
+	return conn.reader.Read(data)
+}
+
+func (conn *recordingConn) Write(data []byte) (int, error) {
+	if conn.writeErr != nil {
+		return 0, conn.writeErr
+	}
+	return len(data), nil
+}
+
+func (conn *recordingConn) Close() error {
+	conn.closeCalls++
+	return nil
+}
+
+func (conn *recordingConn) LocalAddr() net.Addr {
+	return &net.TCPAddr{}
+}
+
+func (conn *recordingConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{}
+}
+
+func (conn *recordingConn) SetDeadline(time.Time) error {
+	return nil
+}
+
+func (conn *recordingConn) SetReadDeadline(time.Time) error {
+	return nil
+}
+
+func (conn *recordingConn) SetWriteDeadline(time.Time) error {
+	return nil
 }

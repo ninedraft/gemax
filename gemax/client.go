@@ -120,6 +120,12 @@ func (client *Client) fetch(ctx context.Context, origURL string, u *urlpkg.URL) 
 	if errConn != nil {
 		return nil, fmt.Errorf("connecting to the server %q: %w", host, errConn)
 	}
+	var closeConn = true
+	defer func() {
+		if closeConn {
+			_ = conn.Close()
+		}
+	}()
 	ctxConnDeadline(ctx, conn)
 
 	var _, errWrite = io.WriteString(conn, origURL+"\r\n")
@@ -140,6 +146,7 @@ func (client *Client) fetch(ctx context.Context, origURL string, u *urlpkg.URL) 
 	runtime.SetFinalizer(resp, func(resp *Response) {
 		_ = resp.Close()
 	})
+	closeConn = false
 	return resp, nil
 }
 
