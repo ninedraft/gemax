@@ -43,12 +43,20 @@ func main() {
 		panic(msg)
 	}
 	out := &bytes.Buffer{}
-	pem.Encode(out, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	os.WriteFile("cert.pem", out.Bytes(), 0644)
+	if err := pem.Encode(out, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		panic(fmt.Sprintf("failed to encode certificate PEM: %v", err))
+	}
+	if err := os.WriteFile("cert.pem", out.Bytes(), 0o600); err != nil {
+		panic(fmt.Sprintf("failed to write cert.pem: %v", err))
+	}
 
 	out.Reset()
-	pem.Encode(out, pemBlockForKey(key))
-	os.WriteFile("key.pem", out.Bytes(), 0644)
+	if err := pem.Encode(out, pemBlockForKey(key)); err != nil {
+		panic(fmt.Sprintf("failed to encode private key PEM: %v", err))
+	}
+	if err := os.WriteFile("key.pem", out.Bytes(), 0o600); err != nil {
+		panic(fmt.Sprintf("failed to write key.pem: %v", err))
+	}
 }
 
 func publicKey(priv interface{}) interface{} {

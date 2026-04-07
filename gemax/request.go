@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 var requestSuffix = []byte("\n")
