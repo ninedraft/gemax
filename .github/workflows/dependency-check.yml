@@ -10,6 +10,7 @@ permissions:
   contents: read
 jobs:
   govulncheck:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -21,4 +22,6 @@ jobs:
           go-version-file: go.mod
           cache: false
       - name: Run govulncheck
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        uses: geomys/sandboxed-step@7d75eb49d17fdeeb3656b3a57d35932d205bcfb9 # v1.2.1
+        with:
+          run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

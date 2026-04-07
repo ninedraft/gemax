@@ -8,6 +8,7 @@ permissions:
   contents: read
 jobs:
   latest-deps-test:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -31,7 +32,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - name: Upgrade dependencies to latest
-        run: go get -u -t ./...
-      - name: Run tests
-        run: go test -race ./...
+      - name: Upgrade dependencies and run tests in sandbox
+        uses: geomys/sandboxed-step@7d75eb49d17fdeeb3656b3a57d35932d205bcfb9 # v1.2.1
+        with:
+          run: |
+            go get -u -t ./...
+            go test -race ./...
