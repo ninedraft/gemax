@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	keySize    = 4096
-	dateFormat = "2006-01-02"
+	keySize                = 4096
+	dateFormat             = "2006-01-02"
+	defaultExpirationYears = 32
 )
 
 func main() {
@@ -45,11 +46,11 @@ func main() {
 	locality := "ether"
 	flag.StringVar(&locality, "loc", locality, "locality of certificate emitter")
 
-	expiration := time.Now().AddDate(32, 0, 0)
+	expiration := defaultExpiration(time.Now())
 	flag.Func("exp",
 		"certificate expiration date. Format: "+dateFormat+". Default: "+expiration.Format(dateFormat),
 		func(value string) error {
-			t, errParse := time.Parse(value, dateFormat)
+			t, errParse := parseExpirationDate(value)
 			if errParse != nil {
 				return errParse
 			}
@@ -64,21 +65,14 @@ func main() {
 		panic(errKey)
 	}
 
-	certTemplate := &x509.Certificate{
-		SerialNumber: big.NewInt(2019),
-		Subject: pkix.Name{
-			Organization: []string{organization},
-			Country:      []string{country},
-			Locality:     []string{locality},
-		},
-		DNSNames:              dnsNames,
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(10, 0, 0),
-		IsCA:                  false,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
+	certTemplate := newCertificateTemplate(
+		time.Now(),
+		expiration,
+		organization,
+		country,
+		locality,
+		dnsNames,
+	)
 
 	log.Print("generating certificate")
 	certEncoded, errCert := x509.CreateCertificate(rand.Reader, certTemplate, certTemplate, &privKey.PublicKey, privKey)
@@ -112,4 +106,34 @@ func writePEM(file, name string, data []byte) error {
 		return fmt.Errorf("encoding PEM data: %w", errEncode)
 	}
 	return nil
+}
+
+func parseExpirationDate(value string) (time.Time, error) {
+	return time.Parse(dateFormat, value)
+}
+
+func defaultExpiration(now time.Time) time.Time {
+	return now.AddDate(defaultExpirationYears, 0, 0)
+}
+
+func newCertificateTemplate(
+	now, expiration time.Time,
+	organization, country, locality string,
+	dnsNames []string,
+) *x509.Certificate {
+	return &x509.Certificate{
+		SerialNumber: big.NewInt(2019),
+		Subject: pkix.Name{
+			Organization: []string{organization},
+			Country:      []string{country},
+			Locality:     []string{locality},
+		},
+		DNSNames:              dnsNames,
+		NotBefore:             now,
+		NotAfter:              expiration,
+		IsCA:                  false,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
 }
