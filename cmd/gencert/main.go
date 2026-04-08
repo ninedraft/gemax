@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"math/big"
 	"os"
@@ -19,9 +20,14 @@ const (
 	keySize                = 4096
 	dateFormat             = "2006-01-02"
 	defaultExpirationYears = 32
+	privateKeyPerm         = 0o600
+	certificatePerm        = 0o644
+	serialNumberBits       = 128
 )
 
 func main() {
+	now := time.Now()
+
 	keyOut := "key.pem"
 	flag.StringVar(&keyOut, "key", keyOut, "dst file to write private key")
 
@@ -46,7 +52,7 @@ func main() {
 	locality := "ether"
 	flag.StringVar(&locality, "loc", locality, "locality of certificate emitter")
 
-	expiration := defaultExpiration(time.Now())
+	expiration := defaultExpiration(now)
 	flag.Func("exp",
 		"certificate expiration date. Format: "+dateFormat+". Default: "+expiration.Format(dateFormat),
 		func(value string) error {
@@ -59,15 +65,25 @@ func main() {
 		})
 	flag.Parse()
 
+	if errValidate := validateExpiration(expiration, now); errValidate != nil {
+		log.Fatal(errValidate)
+	}
+
 	log.Print("generating private key")
 	privKey, errKey := rsa.GenerateKey(rand.Reader, keySize)
 	if errKey != nil {
 		panic(errKey)
 	}
 
+	serialNumber, errSerial := generateSerialNumber()
+	if errSerial != nil {
+		panic(errSerial)
+	}
+
 	certTemplate := newCertificateTemplate(
-		time.Now(),
+		now,
 		expiration,
+		serialNumber,
 		organization,
 		country,
 		locality,
@@ -82,17 +98,17 @@ func main() {
 	keyEncoded := x509.MarshalPKCS1PrivateKey(privKey)
 
 	log.Print("writing key and certificate data")
-	if err := writePEM(keyOut, "RSA PRIVATE KEY", keyEncoded); err != nil {
+	if err := writePEM(keyOut, "RSA PRIVATE KEY", keyEncoded, privateKeyPerm); err != nil {
 		panic(err)
 	}
-	if err := writePEM(certOut, "CERTIFICATE", certEncoded); err != nil {
+	if err := writePEM(certOut, "CERTIFICATE", certEncoded, certificatePerm); err != nil {
 		panic(err)
 	}
 }
 
-func writePEM(file, name string, data []byte) error {
+func writePEM(file, name string, data []byte, perm fs.FileMode) error {
 	// #nosec G304 // hardcoded in code
-	f, errCreate := os.Create(file)
+	f, errCreate := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if errCreate != nil {
 		return fmt.Errorf("creating file: %w", errCreate)
 	}
@@ -112,17 +128,37 @@ func parseExpirationDate(value string) (time.Time, error) {
 	return time.Parse(dateFormat, value)
 }
 
+func validateExpiration(expiration, now time.Time) error {
+	if !expiration.After(now) {
+		return fmt.Errorf("invalid -exp value %q: date must be in the future", expiration.Format(dateFormat))
+	}
+	return nil
+}
+
 func defaultExpiration(now time.Time) time.Time {
 	return now.AddDate(defaultExpirationYears, 0, 0)
 }
 
+func generateSerialNumber() (*big.Int, error) {
+	limit := new(big.Int).Lsh(big.NewInt(1), serialNumberBits)
+	max := new(big.Int).Sub(limit, big.NewInt(1))
+
+	serialNumber, errGenerate := rand.Int(rand.Reader, max)
+	if errGenerate != nil {
+		return nil, fmt.Errorf("generating serial number: %w", errGenerate)
+	}
+
+	return serialNumber.Add(serialNumber, big.NewInt(1)), nil
+}
+
 func newCertificateTemplate(
 	now, expiration time.Time,
+	serialNumber *big.Int,
 	organization, country, locality string,
 	dnsNames []string,
 ) *x509.Certificate {
 	return &x509.Certificate{
-		SerialNumber: big.NewInt(2019),
+		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			Organization: []string{organization},
 			Country:      []string{country},
@@ -133,7 +169,7 @@ func newCertificateTemplate(
 		NotAfter:              expiration,
 		IsCA:                  false,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		BasicConstraintsValid: true,
 	}
 }
