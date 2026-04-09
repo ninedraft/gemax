@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   schedule:
     # Daily at 06:00 UTC (09:00 UTC+3)
-    - cron: "0 6 * * *"
+    - cron: "0 15 * * 5"
 permissions:
   contents: read
 jobs:
