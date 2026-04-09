@@ -627,6 +627,7 @@ func dialAndWriteRaw(
 	ctx context.Context,
 	dialer *memnet.Listener,
 	format string, args ...any) ([]byte, error) {
+
 	t.Helper()
 
 	t.Log("dialing in-memory network (raw)")
