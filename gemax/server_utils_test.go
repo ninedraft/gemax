@@ -78,13 +78,48 @@ func TestRedirect(test *testing.T) {
 		})
 	}
 
-	runCase("relative page target", "gemini://example.com/a/page.gmi", "b.gmi", "gemini://example.com/a/b.gmi")
-	runCase("relative target does not preserve source query", "gemini://example.com/a/page.gmi?old=q", "b.gmi", "gemini://example.com/a/b.gmi")
-	runCase("query-only target updates query", "gemini://example.com/a/page.gmi?old=q", "?new=q", "gemini://example.com/a/page.gmi?new=q")
-	runCase("absolute-path target resolves from host root", "gemini://example.com/a/page.gmi", "/root.gmi", "gemini://example.com/root.gmi")
-	runCase("path without trailing slash is treated as file", "gemini://example.com/a", "b", "gemini://example.com/b")
-	runCase("path with trailing slash is treated as directory", "gemini://example.com/a/", "b", "gemini://example.com/a/b")
-	runCase("absolute gemini target passes through", "gemini://example.com/a/page.gmi", "gemini://other.host/x?z=1", "gemini://other.host/x?z=1")
+	runCase(
+		"relative page target",
+		"gemini://example.com/a/page.gmi",
+		"b.gmi",
+		"gemini://example.com/a/b.gmi",
+	)
+	runCase(
+		"relative target does not preserve source query",
+		"gemini://example.com/a/page.gmi?old=q",
+		"b.gmi",
+		"gemini://example.com/a/b.gmi",
+	)
+	runCase(
+		"query-only target updates query",
+		"gemini://example.com/a/page.gmi?old=q",
+		"?new=q",
+		"gemini://example.com/a/page.gmi?new=q",
+	)
+	runCase(
+		"absolute-path target resolves from host root",
+		"gemini://example.com/a/page.gmi",
+		"/root.gmi",
+		"gemini://example.com/root.gmi",
+	)
+	runCase(
+		"path without trailing slash is treated as file",
+		"gemini://example.com/a",
+		"b",
+		"gemini://example.com/b",
+	)
+	runCase(
+		"path with trailing slash is treated as directory",
+		"gemini://example.com/a/",
+		"b",
+		"gemini://example.com/a/b",
+	)
+	runCase(
+		"absolute gemini target passes through",
+		"gemini://example.com/a/page.gmi",
+		"gemini://other.host/x?z=1",
+		"gemini://other.host/x?z=1",
+	)
 }
 
 type request struct {
