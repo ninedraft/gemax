@@ -114,6 +114,47 @@ func TestServerRecovery_HandlerPanic_ServerKeepsServing(test *testing.T) {
 	expectResponse(test, bytes.NewReader(okResp), "20 text/gemini\r\nok")
 }
 
+func TestServerRecovery_HandlerPanic_AfterWriterClosed_ServerKeepsServing(test *testing.T) {
+	test.Parallel()
+
+	var listener, server = setupServer(test,
+		func(_ context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+			if req.URL().Path == "/panic" {
+				rw.WriteStatus(status.PermanentFailure, "panic test")
+				panic("boom after close")
+			}
+
+			rw.WriteStatus(status.Success, gemax.MIMEGemtext)
+			_, _ = io.WriteString(rw, "ok")
+		},
+	)
+	server.Hosts = []string{"example.com"}
+
+	var ctx = test.Context()
+	runTask(test, func() {
+		var errServe = server.Serve(ctx, listener)
+		switch {
+		case errServe == nil, errors.Is(errServe, net.ErrClosed):
+			return
+		default:
+			test.Logf("test server: Serve: %v", errServe)
+		}
+	})
+	test.Cleanup(func() { _ = listener.Close() })
+
+	var panicResp, errPanicRead = dialAndWriteRaw(test, ctx, listener, "gemini://example.com/panic\r\n")
+	if !errors.Is(errPanicRead, io.EOF) {
+		test.Fatalf("panic request: expected EOF, got %v", errPanicRead)
+	}
+	expectResponse(test, bytes.NewReader(panicResp), "50 panic test\r\n")
+
+	var okResp, errOKRead = dialAndWriteRaw(test, ctx, listener, "gemini://example.com/ok\r\n")
+	if !errors.Is(errOKRead, io.EOF) {
+		test.Fatalf("ok request: expected EOF, got %v", errOKRead)
+	}
+	expectResponse(test, bytes.NewReader(okResp), "20 text/gemini\r\nok")
+}
+
 func TestServerSuccess(test *testing.T) {
 	var listener, server = setupEchoServer(test)
 	server.Hosts = []string{"example.com"}

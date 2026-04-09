@@ -170,7 +170,7 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 			return
 		}
 
-		rw.close()
+		_ = rw.close()
 		stack := debug.Stack()
 		recovered := recover()
 

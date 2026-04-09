@@ -71,6 +71,10 @@ func (rw *responseWriter) Close() error {
 }
 
 func (rw *responseWriter) close() error {
+	if rw.isClosed {
+		return errAlreadyClosed
+	}
+
 	rw.isClosed = true
 	var errClose = rw.writer.Close()
 	putBufferedWriter(rw.writer)
