@@ -1,5 +1,5 @@
 name: go-sandbox-cache
-description: Warm and reuse Go caches around sandboxed-step
+description: Warm and reuse Go caches and sandbox rootfs image around sandboxed-step
 
 inputs:
   sandbox_run:
@@ -16,6 +16,10 @@ inputs:
     description: Optional extra sandbox env lines in KEY=VALUE format
     required: false
     default: ""
+  rootfs_image:
+    description: Rootfs image used by geomys/sandboxed-step
+    required: false
+    default: ghcr.io/catthehacker/ubuntu:runner-24.04
 
 runs:
   using: composite
@@ -26,11 +30,41 @@ runs:
         mkdir -p "$GITHUB_WORKSPACE/.cache/go-mod"
         mkdir -p "$GITHUB_WORKSPACE/.cache/go-build"
         mkdir -p "$GITHUB_WORKSPACE/.cache/go-bin"
+        mkdir -p "$GITHUB_WORKSPACE/.cache/rootfs"
 
     - name: Detect Go version
       id: go-version
       shell: bash
       run: echo "value=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
+
+    - name: Compute rootfs cache metadata
+      id: rootfs-meta
+      shell: bash
+      env:
+        ROOTFS_IMAGE: ${{ inputs.rootfs_image }}
+        CACHE_NAMESPACE: ${{ inputs.cache_namespace }}
+      run: |
+        ROOTFS_SHA="$(printf '%s' "$ROOTFS_IMAGE" | sha256sum | awk '{print $1}')"
+        echo "sha=$ROOTFS_SHA" >> "$GITHUB_OUTPUT"
+        echo "tar_path=$GITHUB_WORKSPACE/.cache/rootfs/rootfs-${CACHE_NAMESPACE}-${ROOTFS_SHA}.tar" >> "$GITHUB_OUTPUT"
+
+    - name: Restore sandbox rootfs image cache
+      id: rootfs-cache-restore
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.rootfs-meta.outputs.tar_path }}
+        key: gvisor-rootfs-${{ inputs.cache_namespace }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.rootfs-meta.outputs.sha }}
+
+    - name: Load sandbox rootfs image cache
+      shell: bash
+      env:
+        ROOTFS_TAR_PATH: ${{ steps.rootfs-meta.outputs.tar_path }}
+      run: |
+        if [ -f "$ROOTFS_TAR_PATH" ]; then
+          docker load --input "$ROOTFS_TAR_PATH"
+        else
+          echo "No cached rootfs archive found at $ROOTFS_TAR_PATH"
+        fi
 
     - name: Restore Go cache
       uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -56,6 +90,7 @@ runs:
       uses: geomys/sandboxed-step@7d75eb49d17fdeeb3656b3a57d35932d205bcfb9 # v1.2.1
       with:
         run: ${{ inputs.sandbox_run }}
+        rootfs-image: ${{ inputs.rootfs_image }}
         env: |
           GOMODCACHE=${{ github.workspace }}/.cache/go-mod
           GOCACHE=${{ github.workspace }}/.cache/go-build
@@ -71,3 +106,20 @@ runs:
           ${{ github.workspace }}/.cache/go-build
           ${{ github.workspace }}/.cache/go-bin
         key: gvisor-go-${{ inputs.cache_namespace }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-version.outputs.value }}-${{ hashFiles('go.sum') }}
+
+    - name: Export sandbox rootfs image cache
+      if: github.event_name != 'pull_request' && steps.rootfs-cache-restore.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        ROOTFS_IMAGE: ${{ inputs.rootfs_image }}
+        ROOTFS_TAR_PATH: ${{ steps.rootfs-meta.outputs.tar_path }}
+      run: |
+        docker image inspect "$ROOTFS_IMAGE" > /dev/null 2>&1 || docker pull --platform linux/amd64 "$ROOTFS_IMAGE"
+        docker save "$ROOTFS_IMAGE" --output "$ROOTFS_TAR_PATH"
+
+    - name: Save sandbox rootfs image cache
+      if: github.event_name != 'pull_request' && steps.rootfs-cache-restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.rootfs-meta.outputs.tar_path }}
+        key: gvisor-rootfs-${{ inputs.cache_namespace }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.rootfs-meta.outputs.sha }}

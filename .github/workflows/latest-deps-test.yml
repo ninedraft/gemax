@@ -37,6 +37,7 @@ jobs:
         uses: ./.github/actions/go-sandbox-cache
         with:
           cache_namespace: latest-deps-test
+          rootfs_image: ghcr.io/catthehacker/ubuntu:runner-24.04
           host_prewarm_run: go mod download
           sandbox_run: |
             go get -u -t ./...
