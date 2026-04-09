@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	urlpkg "net/url"
-	"path"
 	"sort"
 	"strings"
 
@@ -33,23 +32,13 @@ func Redirect(rw ResponseWriter, req IncomingRequest, target string, code status
 		rw.WriteStatus(code, target)
 		return
 	}
-	var url, errParse = urlpkg.Parse(target)
-	if errParse != nil || url.Host != "" || url.Scheme != "" {
+	var targetURL, errParseTarget = urlpkg.Parse(target)
+	if errParseTarget != nil || targetURL.Host != "" || targetURL.Scheme != "" {
 		rw.WriteStatus(code, target)
 		return
 	}
-	// relative path
-	var oldpath = req.URL().Path
-	if oldpath == "" {
-		oldpath = "/"
-	}
-	rw.WriteStatus(code, (&urlpkg.URL{
-		Scheme:   req.URL().Scheme,
-		User:     req.URL().User,
-		Host:     req.URL().Host,
-		Path:     path.Join(oldpath, target),
-		RawQuery: req.URL().RawQuery,
-	}).String())
+	var baseURL = req.URL()
+	rw.WriteStatus(code, baseURL.ResolveReference(targetURL).String())
 }
 
 // NotFound serves a not found error.
