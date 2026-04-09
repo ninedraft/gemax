@@ -1,6 +1,7 @@
 package gemax_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -20,6 +21,139 @@ import (
 
 	"github.com/ninedraft/gemax/vend/tailscale.com/net/memnet"
 )
+
+func TestServerRecovery_HandlerPanic_ClosesConnectionWithoutResponse(test *testing.T) {
+	test.Parallel()
+
+	var listener, server = setupServer(test,
+		func(context.Context, gemax.ResponseWriter, gemax.IncomingRequest) {
+			panic("boom")
+		},
+	)
+	server.Hosts = []string{"example.com"}
+
+	panicLogged := make(chan struct{}, 1)
+	server.Logf = func(format string, args ...any) {
+		var msg = strings.ToLower(fmt.Sprintf(format, args...))
+		if !strings.Contains(msg, "panic") {
+			return
+		}
+		select {
+		case panicLogged <- struct{}{}:
+		default:
+		}
+	}
+
+	var ctx = test.Context()
+	runTask(test, func() {
+		var errServe = server.Serve(ctx, listener)
+		switch {
+		case errServe == nil, errors.Is(errServe, net.ErrClosed):
+			return
+		default:
+			test.Logf("test server: Serve: %v", errServe)
+		}
+	})
+	test.Cleanup(func() { _ = listener.Close() })
+
+	var data, errRead = dialAndWriteRaw(test, ctx, listener, "gemini://example.com/panic\r\n")
+	if !errors.Is(errRead, io.EOF) {
+		test.Fatalf("expected EOF from closed connection, got %v", errRead)
+	}
+	if len(data) != 0 {
+		test.Fatalf("expected empty response, got %q", data)
+	}
+
+	select {
+	case <-panicLogged:
+	case <-time.After(time.Second):
+		test.Fatalf("expected panic marker in logs within %s", time.Second)
+	}
+}
+
+func TestServerRecovery_HandlerPanic_ServerKeepsServing(test *testing.T) {
+	test.Parallel()
+
+	var listener, server = setupServer(test,
+		func(_ context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+			if req.URL().Path == "/panic" {
+				panic("boom")
+			}
+
+			rw.WriteStatus(status.Success, gemax.MIMEGemtext)
+			_, _ = io.WriteString(rw, "ok")
+		},
+	)
+	server.Hosts = []string{"example.com"}
+
+	var ctx = test.Context()
+	runTask(test, func() {
+		var errServe = server.Serve(ctx, listener)
+		switch {
+		case errServe == nil, errors.Is(errServe, net.ErrClosed):
+			return
+		default:
+			test.Logf("test server: Serve: %v", errServe)
+		}
+	})
+	test.Cleanup(func() { _ = listener.Close() })
+
+	var panicResp, errPanicRead = dialAndWriteRaw(test, ctx, listener, "gemini://example.com/panic\r\n")
+	if !errors.Is(errPanicRead, io.EOF) {
+		test.Fatalf("panic request: expected EOF from closed connection, got %v", errPanicRead)
+	}
+	if len(panicResp) != 0 {
+		test.Fatalf("panic request: expected empty response, got %q", panicResp)
+	}
+
+	var okResp, errOKRead = dialAndWriteRaw(test, ctx, listener, "gemini://example.com/ok\r\n")
+	if !errors.Is(errOKRead, io.EOF) {
+		test.Fatalf("ok request: expected EOF, got %v", errOKRead)
+	}
+
+	expectResponse(test, bytes.NewReader(okResp), "20 text/gemini\r\nok")
+}
+
+func TestServerRecovery_HandlerPanic_AfterWriterClosed_ServerKeepsServing(test *testing.T) {
+	test.Parallel()
+
+	var listener, server = setupServer(test,
+		func(_ context.Context, rw gemax.ResponseWriter, req gemax.IncomingRequest) {
+			if req.URL().Path == "/panic" {
+				rw.WriteStatus(status.PermanentFailure, "panic test")
+				panic("boom after close")
+			}
+
+			rw.WriteStatus(status.Success, gemax.MIMEGemtext)
+			_, _ = io.WriteString(rw, "ok")
+		},
+	)
+	server.Hosts = []string{"example.com"}
+
+	var ctx = test.Context()
+	runTask(test, func() {
+		var errServe = server.Serve(ctx, listener)
+		switch {
+		case errServe == nil, errors.Is(errServe, net.ErrClosed):
+			return
+		default:
+			test.Logf("test server: Serve: %v", errServe)
+		}
+	})
+	test.Cleanup(func() { _ = listener.Close() })
+
+	var panicResp, errPanicRead = dialAndWriteRaw(test, ctx, listener, "gemini://example.com/panic\r\n")
+	if !errors.Is(errPanicRead, io.EOF) {
+		test.Fatalf("panic request: expected EOF, got %v", errPanicRead)
+	}
+	expectResponse(test, bytes.NewReader(panicResp), "50 panic test\r\n")
+
+	var okResp, errOKRead = dialAndWriteRaw(test, ctx, listener, "gemini://example.com/ok\r\n")
+	if !errors.Is(errOKRead, io.EOF) {
+		test.Fatalf("ok request: expected EOF, got %v", errOKRead)
+	}
+	expectResponse(test, bytes.NewReader(okResp), "20 text/gemini\r\nok")
+}
 
 func TestServerSuccess(test *testing.T) {
 	var listener, server = setupEchoServer(test)
@@ -485,4 +619,39 @@ func dialAndWrite(t *testing.T, ctx context.Context, dialer *memnet.Listener, fo
 	}
 
 	return resp.String()
+}
+
+//nolint:unparam // it's ok for tests
+func dialAndWriteRaw(
+	t *testing.T,
+	ctx context.Context,
+	dialer *memnet.Listener,
+	format string, args ...any) ([]byte, error) {
+
+	t.Helper()
+
+	t.Log("dialing in-memory network (raw)")
+	conn, errDial := dialer.Dial(ctx, "tcp", t.Name())
+	if errDial != nil {
+		return nil, fmt.Errorf("dialing in-memory network: %w", errDial)
+	}
+	defer func() { _ = conn.Close() }()
+
+	t.Log("writing to in-memory network (raw)")
+	_, errWrite := fmt.Fprintf(conn, format, args...)
+	if errWrite != nil {
+		return nil, fmt.Errorf("writing to in-memory network: %w", errWrite)
+	}
+
+	var raw bytes.Buffer
+	var buf [512]byte
+	for {
+		n, errRead := conn.Read(buf[:])
+		if n > 0 {
+			_, _ = raw.Write(buf[:n])
+		}
+		if errRead != nil {
+			return raw.Bytes(), errRead
+		}
+	}
 }
