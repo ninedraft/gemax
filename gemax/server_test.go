@@ -622,7 +622,11 @@ func dialAndWrite(t *testing.T, ctx context.Context, dialer *memnet.Listener, fo
 }
 
 //nolint:unparam // it's ok for tests
-func dialAndWriteRaw(t *testing.T, ctx context.Context, dialer *memnet.Listener, format string, args ...any) ([]byte, error) {
+func dialAndWriteRaw(
+	t *testing.T,
+	ctx context.Context,
+	dialer *memnet.Listener,
+	format string, args ...any) ([]byte, error) {
 	t.Helper()
 
 	t.Log("dialing in-memory network (raw)")
