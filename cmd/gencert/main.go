@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	keySize                = 4096
-	dateFormat             = "2006-01-02"
-	defaultExpirationYears = 32
-	privateKeyPerm         = 0o600
-	certificatePerm        = 0o644
-	serialNumberBits       = 128
+	keySize                            = 4096
+	dateFormat                         = "2006-01-02"
+	defaultExpirationYears             = 32
+	privateKeyPerm         fs.FileMode = 0o600
+	certificatePerm        fs.FileMode = 0o644
+	serialNumberBits                   = 128
 )
 
 func main() {
@@ -141,9 +141,9 @@ func defaultExpiration(now time.Time) time.Time {
 
 func generateSerialNumber() (*big.Int, error) {
 	limit := new(big.Int).Lsh(big.NewInt(1), serialNumberBits)
-	max := new(big.Int).Sub(limit, big.NewInt(1))
+	upperBound := new(big.Int).Sub(limit, big.NewInt(1))
 
-	serialNumber, errGenerate := rand.Int(rand.Reader, max)
+	serialNumber, errGenerate := rand.Int(rand.Reader, upperBound)
 	if errGenerate != nil {
 		return nil, fmt.Errorf("generating serial number: %w", errGenerate)
 	}
@@ -157,6 +157,7 @@ func newCertificateTemplate(
 	organization, country, locality string,
 	dnsNames []string,
 ) *x509.Certificate {
+
 	return &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{

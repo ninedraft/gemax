@@ -148,7 +148,7 @@ func TestWritePEMPermissions(t *testing.T) {
 	if errKeyInfo != nil {
 		t.Fatalf("stat key file: %v", errKeyInfo)
 	}
-	if got, want := keyInfo.Mode()&os.ModePerm, fsMode(privateKeyPerm); got != want {
+	if got, want := keyInfo.Mode().Perm(), privateKeyPerm; got != want {
 		t.Fatalf("key mode got %o, want %o", got, want)
 	}
 
@@ -156,11 +156,7 @@ func TestWritePEMPermissions(t *testing.T) {
 	if errCertInfo != nil {
 		t.Fatalf("stat cert file: %v", errCertInfo)
 	}
-	if got, want := certInfo.Mode()&os.ModePerm, fsMode(certificatePerm); got != want {
+	if got, want := certInfo.Mode().Perm(), certificatePerm; got != want {
 		t.Fatalf("cert mode got %o, want %o", got, want)
 	}
-}
-
-func fsMode(mode int) os.FileMode {
-	return os.FileMode(mode) & os.ModePerm
 }
