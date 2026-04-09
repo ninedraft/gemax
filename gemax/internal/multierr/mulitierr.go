@@ -42,6 +42,6 @@ func (p *pair) Is(err error) bool {
 	return errors.Is(p.a, err) || errors.Is(p.b, err)
 }
 
-func (p *pair) As(err interface{}) bool {
+func (p *pair) As(err any) bool {
 	return errors.As(p.a, err) || errors.As(p.b, err)
 }

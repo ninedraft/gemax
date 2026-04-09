@@ -27,7 +27,7 @@ type Server struct {
 	Hosts       []string
 	Handler     Handler
 	ConnContext func(ctx context.Context, conn net.Conn) context.Context
-	Logf        func(format string, args ...interface{})
+	Logf        func(format string, args ...any)
 
 	// Maximum number of simultaneous connections served by Server.
 	//	0 - DefaultMaxConnections
@@ -94,9 +94,7 @@ func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 			return fmt.Errorf("gemini server: %w", errAccept)
 		}
 		var track = server.addConn(conn)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			defer server.removeTrack(track)
 
 			if err := handshake(ctx, conn); err != nil {
@@ -105,7 +103,7 @@ func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 			}
 
 			server.handle(ctx, conn)
-		}()
+		})
 	}
 }
 
@@ -210,7 +208,7 @@ type connTrack struct {
 	c net.Conn
 }
 
-func (server *Server) logf(format string, args ...interface{}) {
+func (server *Server) logf(format string, args ...any) {
 	if server.Logf != nil {
 		server.Logf(format, args...)
 	}

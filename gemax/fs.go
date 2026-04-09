@@ -27,7 +27,7 @@ type FileSystem struct {
 	// Will be prepended to the request pats.
 	Prefix string
 	// Optional text logger.
-	Logf func(format string, args ...interface{})
+	Logf func(format string, args ...any)
 }
 
 var _ Handler = new(FileSystem).Serve
@@ -148,7 +148,7 @@ func (fileSystem *FileSystem) serveIndexFile(rw ResponseWriter, dir string, name
 	return false
 }
 
-func (fileSystem *FileSystem) logf(format string, args ...interface{}) {
+func (fileSystem *FileSystem) logf(format string, args ...any) {
 	if fileSystem.Logf != nil {
 		fileSystem.Logf(format, args...)
 	}
