@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"runtime/debug"
 	"sync"
 
 	"github.com/ninedraft/gemax/gemax/status"
@@ -163,7 +164,22 @@ func (server *Server) handle(ctx context.Context, conn net.Conn) {
 		return
 	}
 
+	isPanicked := true
+	defer func() {
+		if !isPanicked {
+			return
+		}
+
+		rw.close()
+		stack := debug.Stack()
+		recovered := recover()
+
+		server.logf("ERRO: recovered panic: %v\n%s", recovered, stack)
+	}()
+
 	server.Handler(ctx, rw, req)
+
+	isPanicked = false
 }
 
 func ignoreErr(fn func() error) {
