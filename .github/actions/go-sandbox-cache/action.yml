@@ -1,0 +1,73 @@
+name: go-sandbox-cache
+description: Warm and reuse Go caches around sandboxed-step
+
+inputs:
+  sandbox_run:
+    description: Command(s) to run inside sandboxed-step
+    required: true
+  cache_namespace:
+    description: Cache namespace prefix
+    required: true
+  host_prewarm_run:
+    description: Optional command(s) to run on host before sandbox
+    required: false
+    default: ""
+  sandbox_env:
+    description: Optional extra sandbox env lines in KEY=VALUE format
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare cache directories
+      shell: bash
+      run: |
+        mkdir -p "$GITHUB_WORKSPACE/.cache/go-mod"
+        mkdir -p "$GITHUB_WORKSPACE/.cache/go-build"
+        mkdir -p "$GITHUB_WORKSPACE/.cache/go-bin"
+
+    - name: Detect Go version
+      id: go-version
+      shell: bash
+      run: echo "value=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
+
+    - name: Restore Go cache
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ github.workspace }}/.cache/go-mod
+          ${{ github.workspace }}/.cache/go-build
+          ${{ github.workspace }}/.cache/go-bin
+        key: gvisor-go-${{ inputs.cache_namespace }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-version.outputs.value }}-${{ hashFiles('go.sum') }}
+        restore-keys: |
+          gvisor-go-${{ inputs.cache_namespace }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-version.outputs.value }}-
+
+    - name: Prewarm dependencies on host
+      if: inputs.host_prewarm_run != ''
+      shell: bash
+      env:
+        GOMODCACHE: ${{ github.workspace }}/.cache/go-mod
+        GOCACHE: ${{ github.workspace }}/.cache/go-build
+        GOBIN: ${{ github.workspace }}/.cache/go-bin
+      run: ${{ inputs.host_prewarm_run }}
+
+    - name: Run in sandbox
+      uses: geomys/sandboxed-step@7d75eb49d17fdeeb3656b3a57d35932d205bcfb9 # v1.2.1
+      with:
+        run: ${{ inputs.sandbox_run }}
+        env: |
+          GOMODCACHE=${{ github.workspace }}/.cache/go-mod
+          GOCACHE=${{ github.workspace }}/.cache/go-build
+          GOBIN=${{ github.workspace }}/.cache/go-bin
+          ${{ inputs.sandbox_env }}
+
+    - name: Save Go cache
+      if: github.event_name != 'pull_request'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ github.workspace }}/.cache/go-mod
+          ${{ github.workspace }}/.cache/go-build
+          ${{ github.workspace }}/.cache/go-bin
+        key: gvisor-go-${{ inputs.cache_namespace }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-version.outputs.value }}-${{ hashFiles('go.sum') }}
