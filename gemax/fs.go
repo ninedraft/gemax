@@ -113,7 +113,7 @@ func (fileSystem *FileSystem) serveDir(rw ResponseWriter, req IncomingRequest, d
 	}
 	var entries, errEntries = fs.ReadDir(fileSystem.FS, dir)
 	if errEntries != nil {
-		fileSystem.Logf("ERROR: serving dir %s: reading dir content: %v", dir, errEntries)
+		fileSystem.logf("ERROR: serving dir %s: reading dir content: %v", dir, errEntries)
 		rw.WriteStatus(status.ServerUnavailable, "")
 		return
 	}
