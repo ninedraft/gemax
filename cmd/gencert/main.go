@@ -114,6 +114,10 @@ func writePEM(file, name string, data []byte, perm fs.FileMode) error {
 	}
 	defer func() { _ = f.Close() }()
 
+	if errChmod := f.Chmod(perm); errChmod != nil {
+		return fmt.Errorf("setting file mode: %w", errChmod)
+	}
+
 	errEncode := pem.Encode(f, &pem.Block{
 		Type:  name,
 		Bytes: data,

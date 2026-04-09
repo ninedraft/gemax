@@ -160,3 +160,31 @@ func TestWritePEMPermissions(t *testing.T) {
 		t.Fatalf("cert mode got %o, want %o", got, want)
 	}
 }
+
+func TestWritePEMOverwriteTightensPermissions(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "key.pem")
+
+	// Create with broad permissions to emulate insecure previous runs.
+	// #nosec G304 -- test path is created by t.TempDir().
+	f, errCreate := os.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if errCreate != nil {
+		t.Fatalf("creating key file: %v", errCreate)
+	}
+	_ = f.Close()
+	// #nosec G302 -- intentionally broad mode to emulate insecure previous runs.
+	if errChmod := os.Chmod(keyPath, 0o666); errChmod != nil {
+		t.Fatalf("setting insecure mode: %v", errChmod)
+	}
+
+	if err := writePEM(keyPath, "RSA PRIVATE KEY", []byte("key"), privateKeyPerm); err != nil {
+		t.Fatalf("writing key: %v", err)
+	}
+
+	keyInfo, errKeyInfo := os.Stat(keyPath)
+	if errKeyInfo != nil {
+		t.Fatalf("stat key file: %v", errKeyInfo)
+	}
+	if got, want := keyInfo.Mode().Perm(), privateKeyPerm; got != want {
+		t.Fatalf("key mode got %o, want %o", got, want)
+	}
+}
