@@ -312,9 +312,7 @@ func TestLimitedListen(test *testing.T) {
 	var wg = sync.WaitGroup{}
 	defer wg.Wait()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		test.Logf("test server: listening on %q", server.Addr)
 		var err = server.ListenAndServe(ctx, cfg)
 		switch {
@@ -323,7 +321,7 @@ func TestLimitedListen(test *testing.T) {
 		default:
 			test.Errorf("test server: listening: %v", err)
 		}
-	}()
+	})
 	time.Sleep(time.Second)
 
 	var client = &gemax.Client{}

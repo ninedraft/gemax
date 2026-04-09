@@ -26,7 +26,7 @@ var ErrHeaderTooLarge = errors.New("header is too large: max header size is " + 
 func ParseResponseHeader(re io.ByteReader) (status.Code, string, error) {
 	var buf strings.Builder
 	var ok bool
-	for i := 0; i < MaxHeaderSize; i++ {
+	for range MaxHeaderSize {
 		var ru, errRune = re.ReadByte()
 		if errRune != nil {
 			return -1, "", multierr.Combine(ErrInvalidResponse, errRune)

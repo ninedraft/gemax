@@ -85,7 +85,7 @@ func (rw *responseWriter) close() error {
 const writeBufferSize = 4 * 1024
 
 var bufioWriterPool = &sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return bufwriter.New(nil, writeBufferSize)
 	},
 }
