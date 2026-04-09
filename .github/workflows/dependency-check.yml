@@ -25,6 +25,5 @@ jobs:
         uses: ./.github/actions/go-sandbox-cache
         with:
           cache_namespace: dependency-check
-          rootfs_image: ghcr.io/catthehacker/ubuntu:runner-24.04
           host_prewarm_run: go mod download && go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
           sandbox_run: $GITHUB_WORKSPACE/.cache/go-bin/govulncheck ./...
