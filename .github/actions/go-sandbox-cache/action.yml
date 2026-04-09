@@ -33,7 +33,7 @@ runs:
       run: echo "value=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
 
     - name: Restore Go cache
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: |
           ${{ github.workspace }}/.cache/go-mod
@@ -64,7 +64,7 @@ runs:
 
     - name: Save Go cache
       if: github.event_name != 'pull_request'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: |
           ${{ github.workspace }}/.cache/go-mod
