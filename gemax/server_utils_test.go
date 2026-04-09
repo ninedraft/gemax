@@ -59,22 +59,32 @@ func TestQuery(test *testing.T) {
 }
 
 func TestRedirect(test *testing.T) {
-	test.Run("relative target preserves redirect code", func(test *testing.T) {
-		var rw = &responseRecorder{}
-		var req = &request{
-			remoteAddr: test.Name(),
-			url:        "gemini://example.com/a",
-		}
+	var runCase = func(name, reqURL, target, wantMeta string) {
+		test.Run(name, func(test *testing.T) {
+			var rw = &responseRecorder{}
+			var req = &request{
+				remoteAddr: test.Name(),
+				url:        reqURL,
+			}
 
-		gemax.Redirect(rw, req, "b", status.RedirectPermanent)
+			gemax.Redirect(rw, req, target, status.RedirectPermanent)
 
-		if rw.status != status.RedirectPermanent {
-			test.Fatalf("expected %s, got %s", status.RedirectPermanent, rw.status)
-		}
-		if rw.meta != "gemini://example.com/a/b" {
-			test.Fatalf("expected %q, got %q", "gemini://example.com/a/b", rw.meta)
-		}
-	})
+			if rw.status != status.RedirectPermanent {
+				test.Fatalf("expected %s, got %s", status.RedirectPermanent, rw.status)
+			}
+			if rw.meta != wantMeta {
+				test.Fatalf("expected %q, got %q", wantMeta, rw.meta)
+			}
+		})
+	}
+
+	runCase("relative page target", "gemini://example.com/a/page.gmi", "b.gmi", "gemini://example.com/a/b.gmi")
+	runCase("relative target does not preserve source query", "gemini://example.com/a/page.gmi?old=q", "b.gmi", "gemini://example.com/a/b.gmi")
+	runCase("query-only target updates query", "gemini://example.com/a/page.gmi?old=q", "?new=q", "gemini://example.com/a/page.gmi?new=q")
+	runCase("absolute-path target resolves from host root", "gemini://example.com/a/page.gmi", "/root.gmi", "gemini://example.com/root.gmi")
+	runCase("path without trailing slash is treated as file", "gemini://example.com/a", "b", "gemini://example.com/b")
+	runCase("path with trailing slash is treated as directory", "gemini://example.com/a/", "b", "gemini://example.com/a/b")
+	runCase("absolute gemini target passes through", "gemini://example.com/a/page.gmi", "gemini://other.host/x?z=1", "gemini://other.host/x?z=1")
 }
 
 type request struct {
